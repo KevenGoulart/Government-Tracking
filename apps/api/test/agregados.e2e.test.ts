@@ -105,14 +105,14 @@ describe('Rankings, estatísticas, fornecedores e comparação (e2e)', () => {
 
     it('guarda a resposta no cache do Redis', async () => {
       await http().get('/estatisticas?ano=2024').expect(200);
-      const chaves = await redis.keys('cache:*:estatisticas:2024');
+      const chaves = await redis.keys('cache:*:*:estatisticas:2024');
       expect(chaves).toHaveLength(1);
       expect(await redis.ttl(chaves[0] as string)).toBeGreaterThan(0);
     });
 
     it('serve do cache em chamadas seguintes', async () => {
       const primeira = await http().get('/estatisticas?ano=2024').expect(200);
-      const [chave] = await redis.keys('cache:*:estatisticas:2024');
+      const [chave] = await redis.keys('cache:*:*:estatisticas:2024');
       // Altera o valor guardado: a segunda resposta tem que vir do cache, não do banco
       await redis.set(chave as string, JSON.stringify({ ...primeira.body, total: '999.00' }));
       const segunda = await http().get('/estatisticas?ano=2024').expect(200);

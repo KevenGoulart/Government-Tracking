@@ -6,6 +6,12 @@ export const envSchema = z.object({
   DATABASE_URL: z.url(),
   REDIS_URL: z.url(),
   CORS_ORIGIN: z.string().default('http://localhost:3000'),
+  /** Identifica a versão do código (ex.: SHA do commit no deploy); entra nas chaves de cache. */
+  APP_VERSION: z
+    .string()
+    .trim()
+    .optional()
+    .transform((valor) => valor || undefined),
 });
 
 export type Env = z.infer<typeof envSchema>;

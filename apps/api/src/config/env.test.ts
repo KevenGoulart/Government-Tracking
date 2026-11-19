@@ -12,6 +12,11 @@ describe('parseEnv', () => {
     expect(env.NODE_ENV).toBe('development');
   });
 
+  it('trata APP_VERSION vazia como ausente', () => {
+    expect(parseEnv({ ...valid, APP_VERSION: '' }).APP_VERSION).toBeUndefined();
+    expect(parseEnv({ ...valid, APP_VERSION: 'abc' }).APP_VERSION).toBe('abc');
+  });
+
   it('falha com mensagem legível quando falta variável obrigatória', () => {
     expect(() => parseEnv({ REDIS_URL: valid.REDIS_URL })).toThrow(/DATABASE_URL/);
   });

@@ -8,7 +8,9 @@ function criar(
 ) {
   const findFirst = vi.fn(() => Promise.resolve({ fim }));
   const prisma = { syncRun: { findFirst } } as unknown as PrismaService;
-  const service = new CacheService({ status: 'ready', ...redis } as unknown as Redis, prisma);
+  const service = new CacheService({ status: 'ready', ...redis } as unknown as Redis, prisma, {
+    APP_VERSION: 'abc123',
+  });
   return { service, findFirst };
 }
 
@@ -20,7 +22,7 @@ describe('CacheService', () => {
 
     await expect(service.obterOuCalcular('x', 60, calcular)).resolves.toEqual({ total: '10.00' });
     expect(calcular).not.toHaveBeenCalled();
-    expect(get).toHaveBeenCalledWith('cache:1000:x');
+    expect(get).toHaveBeenCalledWith('cache:abc123:1000:x');
   });
 
   it('calcula e salva com TTL quando não há valor', async () => {
@@ -30,7 +32,7 @@ describe('CacheService', () => {
     await expect(service.obterOuCalcular('x', 60, () => Promise.resolve([1]))).resolves.toEqual([
       1,
     ]);
-    expect(set).toHaveBeenCalledWith('cache:1000:x', '[1]', 'EX', 60);
+    expect(set).toHaveBeenCalledWith('cache:abc123:1000:x', '[1]', 'EX', 60);
   });
 
   it('continua funcionando quando o Redis falha', async () => {
@@ -50,7 +52,7 @@ describe('CacheService', () => {
     await service.obterOuCalcular('a', 60, () => Promise.resolve(1));
     await service.obterOuCalcular('b', 60, () => Promise.resolve(2));
 
-    expect(get).toHaveBeenLastCalledWith('cache:42:b');
+    expect(get).toHaveBeenLastCalledWith('cache:abc123:42:b');
     expect(findFirst).toHaveBeenCalledTimes(1);
   });
 });
