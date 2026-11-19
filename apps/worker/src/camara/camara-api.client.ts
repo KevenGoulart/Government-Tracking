@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { HttpClient } from './http-client';
+import type { HttpClient } from '../comum/http-client';
 
 const linksSchema = z.array(z.object({ rel: z.string(), href: z.string() }));
 

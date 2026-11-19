@@ -12,6 +12,8 @@ export class HttpError extends Error {
 
 export interface HttpClientOptions {
   userAgent: string;
+  /** Cabeçalhos extras enviados em toda requisição (ex.: chave de API). */
+  headers?: Record<string, string>;
   /** Limite de requisições por segundo (aplicado entre todas as chamadas do cliente). */
   requestsPerSecond: number;
   maxRetries?: number;
@@ -72,7 +74,11 @@ export class HttpClient {
       let res: Response;
       try {
         res = await this.fetchFn(url, {
-          headers: { Accept: accept, 'User-Agent': this.options.userAgent },
+          headers: {
+            ...this.options.headers,
+            Accept: accept,
+            'User-Agent': this.options.userAgent,
+          },
           signal: AbortSignal.timeout(this.timeoutMs),
         });
       } catch (error) {

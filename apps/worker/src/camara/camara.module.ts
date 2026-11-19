@@ -1,9 +1,8 @@
 import { Module } from '@nestjs/common';
 import { APP_CONFIG, type AppConfig } from '../config/config.module';
 import { CamaraApiClient } from './camara-api.client';
-import { HttpClient } from './http-client';
-
-const USER_AGENT = 'RaioXPublico/0.1 (ingestao de dados abertos; projeto educacional)';
+import { HttpClient } from '../comum/http-client';
+import { USER_AGENT } from '../comum/user-agent';
 
 @Module({
   providers: [

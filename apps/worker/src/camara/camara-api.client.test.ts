@@ -1,5 +1,5 @@
 import { CamaraApiClient } from './camara-api.client';
-import { HttpClient } from './http-client';
+import { HttpClient } from '../comum/http-client';
 
 const BASE = 'https://camara.test/api/v2';
 

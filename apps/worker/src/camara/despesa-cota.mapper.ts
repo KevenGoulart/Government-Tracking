@@ -1,11 +1,10 @@
 import { createHash } from 'node:crypto';
+import { colapsarEspacos, limparNomeCategoria, slugCategoria } from '@raio-x/shared';
 import {
-  colapsarEspacos,
-  limparNomeCategoria,
-  normalizarDocumento,
-  normalizarNome,
-  slugCategoria,
-} from '@raio-x/shared';
+  type DespesaNormalizada,
+  fornecedorDaFonte,
+  textoOuNull,
+} from '../comum/despesa-normalizada';
 import type { LinhaCota } from './cota-csv';
 
 /** Rótulos de `indTipoDocumento`, iguais aos que a API da Câmara usa em `tipoDocumento`. */
@@ -16,24 +15,10 @@ const TIPOS_DOCUMENTO: Record<string, string> = {
   '4': 'DANFE/DACTE',
 };
 
-export interface DespesaCota {
+export interface DespesaCota extends DespesaNormalizada {
   /** Identificador do deputado na Câmara (ideCadastro / id da API). */
   ideCadastro: string;
   parlamentar: { nome: string; uf: string | null; partido: string | null };
-  ano: number;
-  mes: number;
-  categoria: { slug: string; nome: string };
-  fornecedor: { chave: string; documento: string | null; nome: string; nomeNormalizado: string };
-  dataDocumento: string | null;
-  codDocumento: string | null;
-  tipoDocumento: string | null;
-  numDocumento: string | null;
-  valorDocumento: string;
-  valorGlosa: string;
-  valorLiquido: string;
-  urlDocumento: string | null;
-  passageiro: string | null;
-  trecho: string | null;
   parcela: number;
   lote: string | null;
   ressarcimento: string | null;
@@ -45,8 +30,6 @@ const vazioParaNull = (valor: string): string | null => {
   const limpo = colapsarEspacos(valor);
   return limpo === '' || limpo === '0' ? null : limpo;
 };
-
-const textoOuNull = (valor: string): string | null => colapsarEspacos(valor) || null;
 
 function decimal(valor: string, campo: string): string {
   const numero = Number(valor === '' ? '0' : valor);
@@ -79,10 +62,6 @@ export function mapearLinhaCota(linha: LinhaCota): DespesaCota | null {
   const ideCadastro = linha.ideCadastro.trim();
   if (!ideCadastro) return null;
 
-  const { documento } = normalizarDocumento(linha.txtCNPJCPF);
-  const nomeFornecedor = colapsarEspacos(linha.txtFornecedor) || 'NÃO INFORMADO';
-  const nomeNormalizado = normalizarNome(nomeFornecedor);
-
   return {
     ideCadastro,
     parlamentar: {
@@ -96,12 +75,7 @@ export function mapearLinhaCota(linha: LinhaCota): DespesaCota | null {
       slug: slugCategoria(linha.txtDescricao),
       nome: limparNomeCategoria(linha.txtDescricao),
     },
-    fornecedor: {
-      chave: documento ?? `nome:${nomeNormalizado}`,
-      documento,
-      nome: nomeFornecedor,
-      nomeNormalizado,
-    },
+    fornecedor: fornecedorDaFonte(linha.txtFornecedor, linha.txtCNPJCPF),
     dataDocumento: data(linha.datEmissao),
     codDocumento: vazioParaNull(linha.ideDocumento),
     tipoDocumento: tipoDocumento(linha.indTipoDocumento),

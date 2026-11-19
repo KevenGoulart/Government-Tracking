@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { FONTES_SYNC } from '@raio-x/shared';
 import { extrairCsvDoZip, lerLinhasCota } from '../camara/cota-csv';
 import { atribuirChaves, type DespesaCota, mapearLinhaCota } from '../camara/despesa-cota.mapper';
-import { HttpClient } from '../camara/http-client';
+import { HttpClient } from '../comum/http-client';
 import { APP_CONFIG, type AppConfig } from '../config/config.module';
 import {
   DespesasRepository,
@@ -93,7 +93,9 @@ export class DespesasSyncService {
       processadas += registros.length;
     }
 
-    removidas += await this.repository.removerDespesasDeAusentes(ano, [...idsParlamentar.values()]);
+    removidas += await this.repository.removerDespesasDeAusentes('CAMARA', ano, [
+      ...idsParlamentar.values(),
+    ]);
 
     this.logger.log(
       `Cota ${ano}: ${processadas} despesas de ${porDeputado.size} deputados ` +

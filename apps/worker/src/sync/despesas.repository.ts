@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@raio-x/db';
 import { normalizarParaBusca } from '@raio-x/shared';
-import type { DespesaCotaComChave } from '../camara/despesa-cota.mapper';
+import type { Casa } from '@raio-x/db';
+import type { DespesaComChave } from '../comum/despesa-normalizada';
 import { PrismaService } from '../prisma/prisma.service';
 
 const LOTE = 5_000;
@@ -29,10 +30,13 @@ export interface FornecedorDaCota {
 export class DespesasRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Garante as categorias e retorna o mapa slug → id. */
-  async garantirCategorias(categorias: Map<string, string>): Promise<Map<string, string>> {
+  /** Garante as categorias da casa e retorna o mapa slug → id. */
+  async garantirCategorias(
+    categorias: Map<string, string>,
+    casa: Casa = 'CAMARA',
+  ): Promise<Map<string, string>> {
     await this.prisma.categoria.createMany({
-      data: [...categorias].map(([slug, nome]) => ({ slug, nome })),
+      data: [...categorias].map(([slug, nome]) => ({ slug, nome, casa })),
       skipDuplicates: true,
     });
     const salvas = await this.prisma.categoria.findMany({
@@ -124,12 +128,16 @@ export class DespesasRepository {
     });
   }
 
-  /** Remove despesas do ano de deputados que não aparecem mais no arquivo da fonte. */
-  async removerDespesasDeAusentes(ano: number, parlamentarIdsPresentes: string[]): Promise<number> {
+  /** Remove despesas do ano de parlamentares da casa que não aparecem mais no arquivo da fonte. */
+  async removerDespesasDeAusentes(
+    casa: Casa,
+    ano: number,
+    parlamentarIdsPresentes: string[],
+  ): Promise<number> {
     const { count } = await this.prisma.despesa.deleteMany({
       where: {
         ano,
-        parlamentar: { casa: 'CAMARA' },
+        parlamentar: { casa },
         parlamentarId: { notIn: parlamentarIdsPresentes },
       },
     });
@@ -137,7 +145,7 @@ export class DespesasRepository {
   }
 
   static paraGravacao(
-    despesa: DespesaCotaComChave,
+    despesa: DespesaComChave,
     ids: { parlamentarId: string; categoriaId: string; fornecedorId: string | undefined },
   ): Prisma.DespesaCreateManyInput {
     return {

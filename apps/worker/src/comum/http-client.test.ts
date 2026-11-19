@@ -102,6 +102,26 @@ describe('HttpClient', () => {
   });
 });
 
+describe('HttpClient (cabeçalhos)', () => {
+  it('envia cabeçalhos extras configurados', async () => {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) =>
+      Promise.resolve(resposta(200, { ok: true })),
+    );
+    const client = new HttpClient({
+      userAgent: 'teste',
+      requestsPerSecond: 1_000,
+      headers: { 'chave-api-dados': 'segredo' },
+      fetch: fetchMock as unknown as typeof fetch,
+      sleep: () => Promise.resolve(),
+    });
+    await client.getJson('http://x', schema);
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({
+      'chave-api-dados': 'segredo',
+      'User-Agent': 'teste',
+    });
+  });
+});
+
 describe('parseRetryAfter', () => {
   it('interpreta segundos e datas HTTP', () => {
     expect(parseRetryAfter('30', 0)).toBe(30_000);
