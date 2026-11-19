@@ -72,7 +72,58 @@ renderizadas por requisição. As respostas da API ficam em cache (`next.revalid
 para dados, 5 min para o status de sincronização), então o custo extra é pequeno.
 
 Os filtros usam formulários GET comuns: funcionam sem JavaScript, ficam na URL (links
-compartilháveis) e o botão voltar do navegador funciona naturalmente.
+compartilháveis) e o botão voltar do navegador funciona naturalmente. A comparação segue
+a mesma ideia: adicionar ou remover um parlamentar é um link que altera `?ids=`.
+
+## Cache: duas camadas, ambas versionadas
+
+| Camada                                                                     | Onde                      | TTL                       | Chave inclui                                                |
+| -------------------------------------------------------------------------- | ------------------------- | ------------------------- | ----------------------------------------------------------- |
+| Respostas agregadas da API (ranking, estatísticas, fornecedor, comparação) | Redis                     | 1 h                       | versão do código + fim da última sincronização + parâmetros |
+| Respostas da API no front                                                  | Cache de dados do Next.js | 1 h (5 min para o status) | cabeçalho `X-App-Version` + URL                             |
+
+- **Invalidação por versão, não por comando.** A chave do Redis inclui o fim da última
+  sincronização bem-sucedida: quando o worker termina, a API passa a usar chaves novas e
+  as antigas expiram sozinhas. Nenhum processo precisa avisar o outro.
+- **A versão do código entra nas duas chaves.** Isso foi descoberto na prática: ao incluir
+  um campo novo na resposta de `/fornecedores`, tanto o Redis quanto o cache do Next
+  continuaram servindo o formato antigo, e a validação Zod do front quebrou. Agora cada
+  deploy (`APP_VERSION`/`VERCEL_GIT_COMMIT_SHA`) usa chaves próprias. Sem versão definida,
+  a API usa o horário de início do processo.
+- **Rede de segurança no front.** Se uma resposta do cache não passar no schema, o front
+  busca de novo direto na API antes de tratar como erro de contrato.
+- **Falha do Redis não derruba a API**: as respostas são calculadas direto do banco.
+
+Com os dados reais, `/estatisticas` cai de ~410 ms para ~25 ms e `/fornecedores/:documento`
+de ~110 ms para ~5 ms com o cache.
+
+## Ranking: partido e UF atuais, total sem juízo de valor
+
+Os filtros de partido e UF do ranking usam os dados **atuais** do parlamentar. Quem trocou
+de partido aparece no partido novo também para despesas antigas. Isso está escrito na
+própria página. O texto também lembra que o limite da cota varia por estado (passagens
+mais caras para estados distantes de Brasília): um total alto não indica irregularidade.
+
+Nos gastos por estado, a página mostra o total e a **média por deputado**, já que as
+bancadas têm tamanhos muito diferentes (SP tem 70 vagas; vários estados têm 8).
+
+## Fornecedor: por CNPJ/CPF ou por id
+
+`GET /fornecedores/:documento` aceita CNPJ/CPF com ou sem pontuação. Fornecedores sem
+documento válido na fonte (identificados pelo nome, ver acima) não teriam como ser
+acessados; para eles a mesma rota aceita o id interno. O front sempre gera o link
+canônico: documento quando existe, id caso contrário.
+
+## Gráficos
+
+- Série única usa um só tom de azul; a comparação usa a paleta categórica em ordem fixa
+  (azul, laranja, verde-água, amarelo), validada para daltonismo nos dois temas.
+- No tema claro, verde-água e amarelo ficam abaixo de 3:1 de contraste contra o fundo;
+  por isso a comparação sempre exibe uma tabela visível com os valores, além da legenda.
+- Todo gráfico tem uma tabela equivalente para leitores de tela, e o próprio gráfico fica
+  fora da árvore de acessibilidade (`aria-hidden`, sem foco).
+- Em anos em andamento os meses recentes parecem "cair", porque os reembolsos são lançados
+  com atraso; os gráficos avisam isso para não sugerir uma redução que não houve.
 
 ## Versões fixadas
 

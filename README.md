@@ -4,7 +4,7 @@ Plataforma web para explorar os gastos públicos de parlamentares brasileiros a 
 
 > Apresentação neutra: o projeto mostra números e a fonte oficial, sem conclusões editoriais.
 
-**Status:** Fase 1 (MVP com dados da Câmara) concluída · próxima: Fase 2 (rankings, fornecedores e comparação).
+**Status:** Fases 1 e 2 concluídas (MVP da Câmara, rankings, fornecedores, comparação e cache) · próxima: Fase 3 (Senado e emendas parlamentares).
 
 ## Arquitetura
 
@@ -46,6 +46,36 @@ O front-end **nunca** chama as APIs do governo diretamente: tudo passa por inges
 | `packages/shared`        | Schemas Zod, tipos e utilitários usados no front e no back      |
 | `packages/tsconfig`      | Configurações TypeScript (strict) compartilhadas                |
 | `packages/eslint-config` | Configurações ESLint compartilhadas (type-aware, sem `any`)     |
+
+## Funcionalidades
+
+| Página                      | O que mostra                                                                                         |
+| --------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `/`                         | Totais do ano, gastos por categoria, maiores totais e gastos por estado (total e média por deputado) |
+| `/parlamentares`            | Busca por nome (tolera erros de digitação), partido e UF                                             |
+| `/parlamentares/[id]`       | Evolução mensal, categorias, maiores fornecedores e despesas com link para a nota fiscal             |
+| `/ranking`                  | Total por deputado no ano, com filtros de categoria, partido e UF                                    |
+| `/fornecedores/[documento]` | Quanto o fornecedor recebeu e de quais deputados                                                     |
+| `/comparar`                 | 2 a 4 deputados lado a lado: totais, evolução mensal e categorias                                    |
+
+Todas as páginas mostram a fonte oficial e a data da última sincronização, funcionam em
+tema claro e escuro, no celular, e são verificadas com axe-core nos testes e2e.
+
+### API
+
+| Endpoint                                | Descrição                                           |
+| --------------------------------------- | --------------------------------------------------- |
+| `GET /parlamentares`                    | Lista com busca e filtros, paginada                 |
+| `GET /parlamentares/:id`                | Dados e resumo de gastos                            |
+| `GET /parlamentares/:id/despesas`       | Despesas com filtros de ano, mês e categoria        |
+| `GET /parlamentares/:id/gastos-mensais` | Série mensal                                        |
+| `GET /rankings`                         | Total por parlamentar (ano, categoria, partido, UF) |
+| `GET /estatisticas`                     | Totais gerais, por categoria e por estado           |
+| `GET /fornecedores/:documento`          | Fornecedor e parlamentares que o pagaram            |
+| `GET /comparacao?ids=a,b`               | Comparação de 2 a 4 parlamentares                   |
+| `GET /meta/sync`                        | Última sincronização de cada fonte                  |
+
+Documentação interativa em `/docs` (Swagger). Os endpoints agregados usam cache em Redis.
 
 ## Como rodar localmente
 
@@ -117,7 +147,7 @@ As decisões não óbvias estão registradas, com o motivo de cada uma, em [docs
 
 - [x] **Fase 0**: monorepo, Docker Compose, Prisma, lint/format, CI
 - [x] **Fase 1**: ingestão da Câmara, API de parlamentares/despesas, busca e página do parlamentar
-- [ ] **Fase 2**: rankings, fornecedores, comparação, estatísticas, cache
+- [x] **Fase 2**: rankings, fornecedores, comparação, estatísticas, cache
 - [ ] **Fase 3**: Senado e emendas parlamentares
 - [ ] **Fase 4**: pontos de atenção (detecção simples de valores fora do padrão)
 - [ ] **Fase 5**: deploy e README final
