@@ -4,14 +4,15 @@ Plataforma web para explorar os gastos públicos de parlamentares brasileiros a 
 
 > Apresentação neutra: o projeto mostra números e a fonte oficial, sem conclusões editoriais.
 
-**Status:** Fase 0 (setup) concluída · Fase 1 (MVP com dados da Câmara) em andamento.
+**Status:** Fase 1 (MVP com dados da Câmara) concluída · próxima: Fase 2 (rankings, fornecedores e comparação).
 
 ## Arquitetura
 
 ```mermaid
 flowchart LR
   subgraph Fontes oficiais
-    CAM[API Dados Abertos<br/>Câmara dos Deputados]
+    CAM[API Dados Abertos<br/>deputados]
+    COTA[Arquivo anual da Cota<br/>despesas CSV]
   end
 
   subgraph Backend
@@ -23,7 +24,8 @@ flowchart LR
 
   WEB[apps/web<br/>Next.js]
 
-  CAM -- ingestão agendada --> WK
+  CAM -- semanal --> WK
+  COTA -- diária --> WK
   WK <--> RD
   WK -- upsert idempotente --> PG
   API --> PG
@@ -60,7 +62,10 @@ docker compose up -d
 pnpm install
 pnpm db:deploy        # aplica as migrations
 
-# 4. Subir web (3000), API (3001) e worker em modo dev
+# 4. Carga inicial: deputados + despesas dos anos em SYNC_INITIAL_YEARS (~7 min)
+pnpm sync:initial
+
+# 5. Subir web (3000), API (3001) e worker em modo dev
 pnpm dev
 ```
 
@@ -69,18 +74,24 @@ pnpm dev
 
 ## Scripts
 
-| Comando           | O que faz                                           |
-| ----------------- | --------------------------------------------------- |
-| `pnpm dev`        | Sobe todos os apps em modo desenvolvimento          |
-| `pnpm build`      | Build de todos os pacotes e apps                    |
-| `pnpm lint`       | ESLint em todo o monorepo                           |
-| `pnpm typecheck`  | Checagem de tipos                                   |
-| `pnpm test`       | Testes unitários (Vitest)                           |
-| `pnpm test:e2e`   | Testes e2e da API (Supertest; exige Postgres/Redis) |
-| `pnpm db:migrate` | Cria/aplica migrations em desenvolvimento           |
-| `pnpm format`     | Formata o código com Prettier                       |
+| Comando             | O que faz                                                                          |
+| ------------------- | ---------------------------------------------------------------------------------- |
+| `pnpm dev`          | Sobe todos os apps em modo desenvolvimento                                         |
+| `pnpm build`        | Build de todos os pacotes e apps                                                   |
+| `pnpm lint`         | ESLint em todo o monorepo                                                          |
+| `pnpm typecheck`    | Checagem de tipos                                                                  |
+| `pnpm test`         | Testes unitários (Vitest)                                                          |
+| `pnpm test:e2e`     | e2e da API (Supertest), integração do worker (Postgres) e front (Playwright + axe) |
+| `pnpm sync:initial` | Carga inicial de deputados e despesas                                              |
+| `pnpm db:migrate`   | Cria/aplica migrations em desenvolvimento                                          |
+| `pnpm format`       | Formata o código com Prettier                                                      |
 
 ## Decisões técnicas
+
+As decisões não óbvias estão registradas, com o motivo de cada uma, em [docs/decisoes.md](docs/decisoes.md). Destaques:
+
+- **Despesas vêm do arquivo anual oficial da Cota (CSV), não da API**: a API devolve `valorLiquido` com o sinal invertido e exigiria ~2.100 requisições por ano.
+- **Chave das despesas derivada do conteúdo**: a fonte não tem ID único por linha; reprocessar não duplica nada e o banco espelha a fonte.
 
 - **Monorepo com Turborepo + pnpm**: tipos e schemas compartilhados entre front e back sem publicar pacotes; o Turbo cuida da ordem de build e do cache.
 - **Worker separado da API**: a ingestão tem perfil de carga diferente (jobs longos, rate limit) e escala/faz deploy de forma independente.
@@ -94,17 +105,18 @@ pnpm dev
 
 ## Fontes de dados
 
-| Fonte                                                                          | Uso                       | Fase |
-| ------------------------------------------------------------------------------ | ------------------------- | ---- |
-| [Dados Abertos da Câmara](https://dadosabertos.camara.leg.br/swagger/api.html) | Deputados e despesas      | 1    |
-| Dados Abertos do Senado (CSV da CEAPS)                                         | Senadores e despesas      | 3    |
-| [Portal da Transparência (CGU)](https://api.portaldatransparencia.gov.br)      | Emendas parlamentares     | 3    |
-| Dados Abertos do TSE                                                           | Bens e contas de campanha | 4+   |
+| Fonte                                                                                                                                                      | Uso                       | Fase |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ---- |
+| [Dados Abertos da Câmara](https://dadosabertos.camara.leg.br/swagger/api.html)                                                                             | Deputados                 | 1    |
+| [Cota Parlamentar — arquivos anuais](https://www2.camara.leg.br/transparencia/cota-para-exercicio-da-atividade-parlamentar/dados-abertos-cota-parlamentar) | Despesas (CEAP)           | 1    |
+| Dados Abertos do Senado (CSV da CEAPS)                                                                                                                     | Senadores e despesas      | 3    |
+| [Portal da Transparência (CGU)](https://api.portaldatransparencia.gov.br)                                                                                  | Emendas parlamentares     | 3    |
+| Dados Abertos do TSE                                                                                                                                       | Bens e contas de campanha | 4+   |
 
 ## Roadmap
 
 - [x] **Fase 0**: monorepo, Docker Compose, Prisma, lint/format, CI
-- [ ] **Fase 1**: ingestão da Câmara, API de parlamentares/despesas, busca e página do parlamentar
+- [x] **Fase 1**: ingestão da Câmara, API de parlamentares/despesas, busca e página do parlamentar
 - [ ] **Fase 2**: rankings, fornecedores, comparação, estatísticas, cache
 - [ ] **Fase 3**: Senado e emendas parlamentares
 - [ ] **Fase 4**: pontos de atenção (detecção simples de valores fora do padrão)
