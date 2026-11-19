@@ -16,6 +16,8 @@
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
   --color-chart-5: var(--chart-5);
+  --color-viz-series-1: var(--viz-series-1);
+  --color-viz-grid: var(--viz-grid);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
@@ -72,6 +74,9 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
+  /* Gráficos: série única (azul) validada para contraste e daltonismo */
+  --viz-series-1: #2a78d6;
+  --viz-grid: oklch(0.922 0 0);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -114,6 +119,8 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --viz-series-1: #3987e5;
+  --viz-grid: oklch(1 0 0 / 12%);
 }
 
 @layer base {
