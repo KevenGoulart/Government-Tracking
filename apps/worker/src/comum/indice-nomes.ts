@@ -34,15 +34,16 @@ function ehSubsequencia(procurados: string[], tokens: string[]): boolean {
  * Regras, nesta ordem:
  * 1. Nome parlamentar idêntico (ignorando acentos e caixa) e único → encontrado.
  * 2. Senão, todas as palavras do nome da fonte aparecem, na ordem, no nome civil, e a
- *    primeira palavra coincide com a do nome parlamentar ("WEVERTON ROCHA" → "Weverton",
- *    nome civil "Weverton Rocha Marques de Sousa") → encontrado se houver um só candidato.
+ *    primeira palavra coincide com a do nome parlamentar ou a do nome civil ("WEVERTON
+ *    ROCHA" → "Weverton", nome civil "Weverton Rocha Marques de Sousa") → encontrado se
+ *    houver um só candidato.
  *
  * Mais de um candidato nunca é resolvido "no chute": volta como ambíguo, e quem chama
  * deixa o registro sem vínculo e o contabiliza.
  */
 export class IndiceNomes {
   private readonly porNome = new Map<string, string[]>();
-  private readonly pessoas: { id: string; primeiro: string; civil: string[] }[];
+  private readonly pessoas: { id: string; primeiros: Set<string>; civil: string[] }[];
 
   constructor(pessoas: PessoaIndexada[]) {
     for (const p of pessoas) {
@@ -51,7 +52,14 @@ export class IndiceNomes {
     }
     this.pessoas = pessoas.map((p) => ({
       id: p.id,
-      primeiro: chaveNome(p.nome).split(' ')[0] ?? '',
+      // Primeira palavra do nome parlamentar ou do nome civil ("Professora Marcivania",
+      // nome civil "Marcivania do Socorro da Rocha Flexa", aparece como "MARCIVANIA FLEXA").
+      primeiros: new Set(
+        [
+          chaveNome(p.nome).split(' ')[0],
+          p.nomeCivil ? chaveNome(p.nomeCivil).split(' ')[0] : undefined,
+        ].filter((t): t is string => Boolean(t)),
+      ),
       civil: p.nomeCivil ? chaveNome(p.nomeCivil).split(' ') : [],
     }));
   }
@@ -70,7 +78,7 @@ export class IndiceNomes {
 
     const tokens = chave.split(' ');
     const candidatos = this.pessoas
-      .filter((p) => p.primeiro === tokens[0] && ehSubsequencia(tokens, p.civil))
+      .filter((p) => p.primeiros.has(tokens[0] ?? '') && ehSubsequencia(tokens, p.civil))
       .map((p) => p.id);
     if (candidatos.length === 1 && candidatos[0])
       return { status: 'encontrado', id: candidatos[0] };

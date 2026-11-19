@@ -43,6 +43,18 @@ describe('mapearEmenda', () => {
     );
   });
 
+  it('separa a observação mesmo quando a fonte trunca o parêntese de fechamento', () => {
+    const emenda = mapearEmenda({
+      ...base,
+      nomeAutor:
+        'DR. FLAVIO (EX-PARLAMENTAR DELEGADO RAMAGEM, NOS TERMOS DA DECISAO ADPF 854, DE 03',
+    });
+    expect(emenda.autor).toBe('DR. FLAVIO');
+    expect(emenda.observacaoAutor).toBe(
+      'EX-PARLAMENTAR DELEGADO RAMAGEM, NOS TERMOS DA DECISAO ADPF 854, DE 03',
+    );
+  });
+
   it.each([
     ['Emenda de Bancada', 'BANCADA DO RIO DE JANEIRO'],
     ['Emenda de Comissão', 'COMISSAO DE SAUDE'],

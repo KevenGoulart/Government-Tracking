@@ -32,7 +32,8 @@ const textoOuNull = (valor: string | null | undefined) => colapsarEspacos(valor 
  * LDO 2025 ...)": a emenda passou para o sucessor do mandato, que é quem aparece como autor.
  */
 export function mapearEmenda(emenda: EmendaPortal): EmendaNormalizada {
-  const match = /^([^(]*)\((.*)\)\s*$/.exec(emenda.nomeAutor);
+  // A fonte às vezes trunca o texto e o parêntese de fechamento some: ")" é opcional.
+  const match = /^([^(]*)\((.*?)\)?\s*$/.exec(emenda.nomeAutor);
   const autor = colapsarEspacos(match?.[1] ?? emenda.nomeAutor);
   const tipo = colapsarEspacos(emenda.tipoEmenda);
 
