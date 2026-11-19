@@ -39,6 +39,8 @@ export const envSchema = z.object({
   TRANSPARENCIA_RATE_LIMIT_PER_SECOND: z.coerce.number().positive().default(1),
   SYNC_INITIAL_YEARS: yearList.default([new Date().getFullYear()]),
   SYNC_CRON_ENABLED: booleanFromString.default(true),
+  /** Enfileira a carga inicial quando o worker sobe com o banco vazio (ex.: deploy novo). */
+  SYNC_INITIAL_ON_EMPTY_DB: booleanFromString.default(true),
 });
 
 export type Env = z.infer<typeof envSchema>;
