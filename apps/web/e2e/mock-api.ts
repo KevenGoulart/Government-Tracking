@@ -105,6 +105,11 @@ const detalheAna = {
   },
 };
 
+const ranking = [
+  { posicao: 1, parlamentar: parlamentares[0], total: '7000.00', quantidade: 25 },
+  { posicao: 2, parlamentar: parlamentares[1], total: '250.00', quantidade: 2 },
+];
+
 const semAcento = (s: string) =>
   s
     .normalize('NFD')
@@ -157,6 +162,71 @@ createServer((req, res) => {
         (!p.get('uf') || x.uf === p.get('uf')),
     );
     return json(res, 200, paginar(filtrados, p));
+  }
+  if (caminho === '/estatisticas') {
+    return json(res, 200, {
+      ano: Number(p.get('ano') ?? 2025),
+      anosDisponiveis: [2025, 2024],
+      total: '7250.00',
+      quantidadeDespesas: 27,
+      quantidadeParlamentares: 2,
+      quantidadeFornecedores: 2,
+      porCategoria: detalheAna.resumo.categorias,
+      porUf: [
+        { uf: 'SP', total: '7000.00', parlamentares: 1, mediaPorParlamentar: '7000.00' },
+        { uf: 'RJ', total: '250.00', parlamentares: 1, mediaPorParlamentar: '250.00' },
+      ],
+      maioresGastos: ranking,
+    });
+  }
+  if (caminho === '/rankings') {
+    const filtrado = ranking.filter(
+      (i) =>
+        (!p.get('uf') || i.parlamentar?.uf === p.get('uf')) &&
+        (!p.get('partido') || i.parlamentar?.partido === p.get('partido')),
+    );
+    const pagina = paginar(
+      filtrado.map((i, n) => ({ ...i, posicao: n + 1 })),
+      p,
+    );
+    return json(res, 200, { ano: Number(p.get('ano') ?? 2025), ...pagina });
+  }
+  if (caminho === '/fornecedores/02012862000160') {
+    return json(res, 200, {
+      id: 'cmforn0000000000000000tam',
+      nome: 'TAM',
+      documento: '02012862000160',
+      tipoDocumento: 'CNPJ',
+      ano: p.get('ano') ? Number(p.get('ano')) : null,
+      anosDisponiveis: [{ ano: 2025, total: '5000.00' }],
+      total: '5000.00',
+      quantidade: 5,
+      quantidadeParlamentares: 1,
+      parlamentares: [{ parlamentar: parlamentares[0], total: '5000.00', quantidade: 5 }],
+      categorias: [detalheAna.resumo.categorias[0]],
+    });
+  }
+  if (caminho.startsWith('/fornecedores/')) {
+    return json(res, 404, { statusCode: 404, message: 'Fornecedor não encontrado' });
+  }
+  if (caminho === '/comparacao') {
+    const ids = (p.get('ids') ?? '').split(',').filter(Boolean);
+    const escolhidos = ids.map((id) => parlamentares.find((x) => x.id === id));
+    if (ids.length < 2) return json(res, 400, { message: 'Parâmetros inválidos' });
+    if (escolhidos.some((x) => !x)) return json(res, 404, { message: 'Não encontrado' });
+    return json(res, 200, {
+      ano: Number(p.get('ano') ?? 2025),
+      parlamentares: escolhidos.map((x, i) => ({
+        parlamentar: x,
+        total: i === 0 ? '7000.00' : '250.00',
+        quantidade: i === 0 ? 25 : 2,
+        categorias: i === 0 ? detalheAna.resumo.categorias : [detalheAna.resumo.categorias[1]],
+        mensal: [
+          { ano: 2025, mes: 1, total: i === 0 ? '2700.00' : '250.00' },
+          { ano: 2025, mes: 2, total: i === 0 ? '4300.00' : '0.00' },
+        ],
+      })),
+    });
   }
 
   const rota = /^\/parlamentares\/([^/]+)(\/despesas|\/gastos-mensais)?$/.exec(caminho);

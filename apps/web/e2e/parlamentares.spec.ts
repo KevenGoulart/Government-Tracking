@@ -151,3 +151,86 @@ test('alterna o tema escuro', async ({ page }) => {
   await page.getByRole('button', { name: 'Alternar tema claro/escuro' }).click();
   await expect(page.locator('html')).toHaveClass(/dark/);
 });
+
+test.describe('estatísticas, ranking, fornecedor e comparação', () => {
+  const BRUNO = 'cmbruno00000000000000000b2';
+
+  test('home mostra totais e leva ao ranking por categoria', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Cota parlamentar em 2025' })).toBeVisible();
+    await expect(page.getByText(/R\$\s7\.250,00/)).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Maiores totais de 2025' })).toBeVisible();
+
+    await page.getByRole('link', { name: /Passagem aérea - SIGEPA/ }).click();
+    await expect(page).toHaveURL(/\/ranking\?ano=2025&categoria=passagem-aerea-sigepa/);
+  });
+
+  test('ranking aplica filtros pelo formulário', async ({ page }) => {
+    await page.goto('/ranking');
+    await expect(page.getByRole('heading', { name: 'Ranking de gastos' })).toBeVisible();
+    const tabela = page.getByRole('table', { name: /Ranking de gastos de 2025/ });
+    await expect(tabela.getByRole('row')).toHaveCount(3);
+
+    await page.getByLabel('UF').selectOption('RJ');
+    await page.getByRole('button', { name: 'Aplicar' }).click();
+
+    await expect(page).toHaveURL(/uf=RJ/);
+    await expect(tabela.getByRole('row')).toHaveCount(2);
+    await expect(tabela).toContainText('Bruno Carvalho');
+    await expect(page.getByLabel('UF')).toHaveValue('RJ');
+  });
+
+  test('fornecedor: chega pela página do parlamentar e lista quem pagou', async ({ page }) => {
+    await page.goto(ANA);
+    await page.getByRole('link', { name: 'TAM', exact: true }).first().click();
+
+    await expect(page).toHaveURL(/\/fornecedores\/02012862000160$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'TAM' })).toBeVisible();
+    await expect(page.getByText('CNPJ 02.012.862/0001-60')).toBeVisible();
+    await expect(page.getByRole('table', { name: /Deputados que pagaram TAM/ })).toContainText(
+      'Ana Lúcia Souza',
+    );
+  });
+
+  test('fornecedor inexistente responde 404', async ({ page }) => {
+    const resposta = await page.goto('/fornecedores/11111111111111');
+    expect(resposta?.status()).toBe(404);
+    await expect(page.getByRole('heading', { name: 'Fornecedor não encontrado' })).toBeVisible();
+  });
+
+  test('comparação: adiciona e remove parlamentares pela URL', async ({ page }) => {
+    await page.goto(ANA);
+    await page.getByRole('link', { name: 'Comparar com outros parlamentares' }).click();
+    await expect(page).toHaveURL(/\/comparar\?ids=cmana/);
+    await expect(page.getByText('Selecionados (1 de 4)')).toBeVisible();
+
+    await page.getByLabel('Nome do parlamentar').fill('bruno');
+    await page.getByRole('button', { name: 'Buscar' }).click();
+    await page.getByRole('link', { name: 'Adicionar Bruno Carvalho' }).click();
+
+    await expect(page).toHaveURL(new RegExp(`ids=cmana0000000000000000000a1(%2C|,)${BRUNO}`));
+    await expect(page.getByRole('heading', { name: 'Comparação em 2025' })).toBeVisible();
+    const resumo = page.getByRole('table', { name: 'Resumo da comparação em 2025' });
+    await expect(resumo.getByRole('row')).toHaveCount(3);
+    await expect(resumo).toContainText('R$ 7.000,00');
+    await expect(page.getByRole('table', { name: 'Gasto mensal em 2025' })).toBeAttached();
+
+    await page.getByRole('link', { name: 'Remover Bruno Carvalho da comparação' }).click();
+    await expect(page.getByText('Selecionados (1 de 4)')).toBeVisible();
+  });
+
+  for (const [nome, url] of [
+    ['home', '/'],
+    ['ranking', '/ranking'],
+    ['fornecedor', '/fornecedores/02012862000160'],
+    ['comparação', `/comparar?ids=cmana0000000000000000000a1,${BRUNO}`],
+  ] as const) {
+    test(`${nome} não tem violações de acessibilidade (claro e escuro)`, async ({ page }) => {
+      await page.goto(url);
+      await semViolacoesDeAcessibilidade(page);
+      await page.emulateMedia({ colorScheme: 'dark' });
+      await page.reload();
+      await semViolacoesDeAcessibilidade(page);
+    });
+  }
+});
