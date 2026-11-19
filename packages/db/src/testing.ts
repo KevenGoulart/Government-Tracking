@@ -6,21 +6,26 @@ import type { PrismaClient } from './generated/prisma/client';
 /** Diretório do pacote `@raio-x/db` (onde ficam o schema e as migrations). */
 const DB_PACKAGE_DIR = path.resolve(__dirname, '..');
 
-/** Deriva a URL do banco de testes a partir da URL principal: `raiox` → `raiox_test`. */
-export function testDatabaseUrl(baseUrl: string): string {
+/**
+ * Deriva a URL do banco de testes a partir da URL principal: `raiox` → `raiox_test_<app>`.
+ * Cada app tem o próprio banco: o Turbo roda os testes em paralelo, e um `TRUNCATE` num
+ * app apagaria os dados de outro no meio do teste.
+ */
+export function testDatabaseUrl(baseUrl: string, app: string): string {
+  if (!/^[a-z]+$/.test(app)) throw new Error(`Nome de app inválido para banco de teste: ${app}`);
   const url = new URL(baseUrl);
-  const nome = url.pathname.replace(/^\//, '');
+  const nome = url.pathname.replace(/^\//, '').replace(/_test(_[a-z]+)?$/, '');
   if (!nome) throw new Error('DATABASE_URL sem nome de banco');
-  url.pathname = nome.endsWith('_test') ? `/${nome}` : `/${nome}_test`;
+  url.pathname = `/${nome}_test_${app}`;
   return url.toString();
 }
 
 /**
- * Garante que o banco de testes exista e esteja com todas as migrations aplicadas.
+ * Garante que o banco de testes do app exista e esteja com todas as migrations aplicadas.
  * Retorna a URL de conexão. Usado no `globalSetup` dos testes de integração.
  */
-export async function prepareTestDatabase(baseUrl: string): Promise<string> {
-  const url = testDatabaseUrl(baseUrl);
+export async function prepareTestDatabase(baseUrl: string, app: string): Promise<string> {
+  const url = testDatabaseUrl(baseUrl, app);
   const nome = new URL(url).pathname.slice(1);
 
   const admin = new URL(baseUrl);

@@ -9,12 +9,12 @@ declare module 'vitest' {
   }
 }
 
-/** Cria/migra o banco `<nome>_test` e o disponibiliza para os testes via `inject('databaseUrl')`. */
+/** Cria/migra o banco `<nome>_test_<app>` e o disponibiliza para os testes via `inject('databaseUrl')`. */
 export default async function setup(project: TestProject): Promise<void> {
   const envFile = resolve(process.cwd(), '../../.env');
   if (existsSync(envFile)) process.loadEnvFile(envFile);
 
   const baseUrl = process.env.DATABASE_URL;
   if (!baseUrl) throw new Error('DATABASE_URL não definida para os testes e2e');
-  project.provide('databaseUrl', await prepareTestDatabase(baseUrl));
+  project.provide('databaseUrl', await prepareTestDatabase(baseUrl, 'api'));
 }
