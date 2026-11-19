@@ -33,23 +33,25 @@ export function GastosMensais({ gastos, ano }: { gastos: GastoMensal[]; ano: num
   return (
     <figure className="space-y-2">
       <GastosMensaisChart dados={dados} />
-      <table className="sr-only">
-        <caption>Gasto mensal em {ano}, por mês de competência</caption>
-        <thead>
-          <tr>
-            <th scope="col">Mês</th>
-            <th scope="col">Valor líquido</th>
-          </tr>
-        </thead>
-        <tbody>
-          {dados.map((d) => (
-            <tr key={d.mes}>
-              <td>{nomeMes(d.mes)}</td>
-              <td>{formatarMoeda(d.total)}</td>
+      <div className="sr-only">
+        <table>
+          <caption>Gasto mensal em {ano}, por mês de competência</caption>
+          <thead>
+            <tr>
+              <th scope="col">Mês</th>
+              <th scope="col">Valor líquido</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {dados.map((d) => (
+              <tr key={d.mes}>
+                <td>{nomeMes(d.mes)}</td>
+                <td>{formatarMoeda(d.total)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       <figcaption className="text-muted-foreground text-xs">
         Valor líquido por mês de competência (mês em que a despesa foi lançada na cota).
         {ano === new Date().getFullYear() && (

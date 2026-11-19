@@ -6,7 +6,7 @@ import { FotoParlamentar } from './foto-parlamentar';
 
 export function ParlamentarCard({ parlamentar }: { parlamentar: ParlamentarResumo }) {
   return (
-    <li>
+    <li className="min-w-0">
       <Link
         href={`/parlamentares/${parlamentar.id}`}
         className="hover:bg-muted/50 focus-visible:ring-ring/50 flex items-center gap-4 rounded-lg border p-4 transition-colors outline-none focus-visible:ring-3"
@@ -14,7 +14,7 @@ export function ParlamentarCard({ parlamentar }: { parlamentar: ParlamentarResum
         <FotoParlamentar nome={parlamentar.nome} fotoUrl={parlamentar.fotoUrl} tamanho={56} />
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium">{parlamentar.nome}</p>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-muted-foreground text-sm break-words">
             {[CASAS[parlamentar.casa].cargo, parlamentar.partido, parlamentar.uf]
               .filter(Boolean)
               .join(' · ')}

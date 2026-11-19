@@ -94,7 +94,7 @@ export default async function FornecedorPage({ params, searchParams }: Props) {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-        <section aria-labelledby="titulo-pagadores" className="space-y-3">
+        <section aria-labelledby="titulo-pagadores" className="min-w-0 space-y-3">
           <h2 id="titulo-pagadores" className="text-lg font-semibold">
             Deputados que pagaram este fornecedor
           </h2>

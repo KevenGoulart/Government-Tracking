@@ -34,7 +34,10 @@ export function TabelaRanking({ itens, legenda }: TabelaRankingProps) {
           <TableRow>
             <TableHead className="w-12 text-right">#</TableHead>
             <TableHead>Parlamentar</TableHead>
-            <TableHead className="text-right">Total (valor líquido)</TableHead>
+            <TableHead className="text-right">
+              <span className="sm:hidden">Total</span>
+              <span className="hidden sm:inline">Total (valor líquido)</span>
+            </TableHead>
             <TableHead className="hidden text-right sm:table-cell">Despesas</TableHead>
           </TableRow>
         </TableHeader>

@@ -24,9 +24,9 @@ export function BarrasHorizontais({ itens, vazio }: { itens: ItemBarra[]; vazio:
       {positivos.map((item) => {
         const conteudo = (
           <>
-            <div className="flex items-baseline justify-between gap-4 text-sm">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 text-sm">
               <span className={item.href ? 'group-hover:underline' : undefined}>{item.rotulo}</span>
-              <span className="text-muted-foreground shrink-0 tabular-nums">
+              <span className="text-muted-foreground tabular-nums">
                 {formatarMoeda(item.valor)}
                 {item.detalhe && ` · ${item.detalhe}`}
               </span>

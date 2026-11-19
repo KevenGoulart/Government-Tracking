@@ -325,29 +325,31 @@ function TabelaGrafico({
   return (
     <figure>
       {children}
-      <table className="sr-only">
-        <caption>{titulo}</caption>
-        <thead>
-          <tr>
-            <th scope="col">Período/categoria</th>
-            {series.map((s) => (
-              <th key={s.id} scope="col">
-                {s.nome}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {linhas.map((linha) => (
-            <tr key={linha.rotulo}>
-              <th scope="row">{rotulo(linha.rotulo)}</th>
+      <div className="sr-only">
+        <table>
+          <caption>{titulo}</caption>
+          <thead>
+            <tr>
+              <th scope="col">Período/categoria</th>
               {series.map((s) => (
-                <td key={s.id}>{formatarMoeda(Number(linha[s.id] ?? 0))}</td>
+                <th key={s.id} scope="col">
+                  {s.nome}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {linhas.map((linha) => (
+              <tr key={linha.rotulo}>
+                <th scope="row">{rotulo(linha.rotulo)}</th>
+                {series.map((s) => (
+                  <td key={s.id}>{formatarMoeda(Number(linha[s.id] ?? 0))}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </figure>
   );
 }

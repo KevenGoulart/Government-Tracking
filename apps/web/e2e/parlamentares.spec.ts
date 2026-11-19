@@ -148,6 +148,24 @@ test('todas as páginas mostram a fonte oficial e a data da sincronização', as
   await expect(rodape).toContainText('Dados sincronizados em 19/11/2026');
 });
 
+test('nenhuma página rola na horizontal no celular', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const url of [
+    '/',
+    '/?casa=SENADO',
+    '/parlamentares',
+    ANA,
+    '/parlamentares/cmdavi000000000000000000d4',
+    '/ranking',
+    '/fornecedores/02012862000160',
+    '/comparar?ids=cmana0000000000000000000a1,cmbruno00000000000000000b2',
+  ]) {
+    await page.goto(url);
+    const largura = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(largura, url).toBeLessThanOrEqual(390);
+  }
+});
+
 test('alterna o tema escuro', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Alternar tema claro/escuro' }).click();
