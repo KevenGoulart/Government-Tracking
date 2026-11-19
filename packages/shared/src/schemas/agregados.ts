@@ -1,12 +1,16 @@
 import { z } from 'zod';
-import { anoQuerySchema, decimalSchema, opcionalDaQuery, ufSchema } from './common';
+import { anoQuerySchema, casaSchema, decimalSchema, opcionalDaQuery, ufSchema } from './common';
 import { gastoMensalSchema } from './despesa';
 import { paginationQuerySchema } from './pagination';
 import { parlamentarResumoSchema, totalCategoriaSchema } from './parlamentar';
 
 // ---------- Ranking ----------
 
+/** Câmara e Senado têm cotas diferentes: totais nunca misturam as duas casas. */
+const casaPadraoCamara = opcionalDaQuery(casaSchema).transform((casa) => casa ?? 'CAMARA');
+
 export const rankingQuerySchema = paginationQuerySchema.extend({
+  casa: casaPadraoCamara,
   /** Quando omitido, usa o ano mais recente com dados. */
   ano: opcionalDaQuery(anoQuerySchema),
   categoria: opcionalDaQuery(z.string().trim().max(120)),
@@ -24,6 +28,7 @@ export const rankingItemSchema = z.object({
 export type RankingItem = z.infer<typeof rankingItemSchema>;
 
 export const rankingSchema = z.object({
+  casa: casaSchema,
   ano: z.number().int().nullable(),
   data: z.array(rankingItemSchema),
   meta: z.object({
@@ -38,6 +43,7 @@ export type Ranking = z.infer<typeof rankingSchema>;
 // ---------- Estatísticas gerais ----------
 
 export const estatisticasQuerySchema = z.object({
+  casa: casaPadraoCamara,
   ano: opcionalDaQuery(anoQuerySchema),
 });
 export type EstatisticasQuery = z.infer<typeof estatisticasQuerySchema>;
@@ -52,6 +58,7 @@ export const totalUfSchema = z.object({
 export type TotalUf = z.infer<typeof totalUfSchema>;
 
 export const estatisticasSchema = z.object({
+  casa: casaSchema,
   ano: z.number().int().nullable(),
   anosDisponiveis: z.array(z.number().int()),
   total: decimalSchema,

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   anoQuerySchema,
+  casaSchema,
   dataSchema,
   decimalSchema,
   mesQuerySchema,
@@ -27,6 +28,11 @@ export type GastosMensaisQuery = z.infer<typeof gastosMensaisQuerySchema>;
 // ---------- Respostas ----------
 
 export const categoriaSchema = z.object({ slug: z.string(), nome: z.string() });
+
+export const categoriasQuerySchema = z.object({
+  casa: opcionalDaQuery(casaSchema),
+});
+export type CategoriasQuery = z.infer<typeof categoriasQuerySchema>;
 export type Categoria = z.infer<typeof categoriaSchema>;
 
 export const despesaSchema = z.object({

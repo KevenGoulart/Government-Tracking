@@ -3,6 +3,9 @@ import { z } from 'zod';
 export const FONTES_SYNC = {
   CAMARA_DEPUTADOS: 'camara:deputados',
   CAMARA_DESPESAS: 'camara:despesas',
+  SENADO_SENADORES: 'senado:senadores',
+  SENADO_DESPESAS: 'senado:despesas',
+  TRANSPARENCIA_EMENDAS: 'transparencia:emendas',
 } as const;
 export type FonteSync = (typeof FONTES_SYNC)[keyof typeof FONTES_SYNC];
 
@@ -14,7 +17,10 @@ export const syncStatusSchema = z.object({
       ultimaSincronizacao: z.iso.datetime().nullable(),
     }),
   ),
-  /** A mais antiga entre as últimas sincronizações: os dados exibidos estão atualizados até aqui. */
+  /**
+   * A mais antiga entre as últimas sincronizações das fontes que já sincronizaram ao menos
+   * uma vez: os dados exibidos estão atualizados até aqui.
+   */
   atualizadoEm: z.iso.datetime().nullable(),
 });
 export type SyncStatus = z.infer<typeof syncStatusSchema>;
