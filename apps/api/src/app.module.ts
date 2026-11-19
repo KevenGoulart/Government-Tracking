@@ -8,6 +8,7 @@ import { FornecedoresModule } from './fornecedores/fornecedores.module';
 import { HealthModule } from './health/health.module';
 import { MetaController } from './meta/meta.controller';
 import { ParlamentaresModule } from './parlamentares/parlamentares.module';
+import { PontosAtencaoModule } from './pontos-atencao/pontos-atencao.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
@@ -21,6 +22,7 @@ import { PrismaModule } from './prisma/prisma.module';
     AgregadosModule,
     FornecedoresModule,
     EmendasModule,
+    PontosAtencaoModule,
   ],
   controllers: [MetaController],
 })

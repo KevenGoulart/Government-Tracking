@@ -131,6 +131,49 @@ lado, são compartilhados: o mesmo CNPJ que recebeu de deputados e senadores tem
 - **Fotos do Senado**: a API informa `http://www.senado.leg.br/.../senador{codigo}.jpg`, que
   redireciona; gravamos o destino final em HTTPS (`legis.senado.leg.br`).
 
+## Pontos de atenção (Fase 4)
+
+Duas regras estatísticas simples, calculadas na API sobre os dados já sincronizados e
+explicadas na própria página. A redação é neutra: os pontos **não indicam irregularidade**.
+Os números ficam em `CRITERIOS_PONTOS_ATENCAO` (`packages/shared`), usados tanto no cálculo
+quanto no texto exibido, para que a explicação nunca fique diferente da regra.
+
+**1. Despesa atípica para a categoria.** O valor precisa estar acima do **percentil 99** e da
+**cerca de Tukey para valores extremos** (Q3 + 3 × IQR) das despesas da mesma categoria, no
+mesmo ano, considerando todos os parlamentares da casa. As duas condições juntas foram
+escolhidas olhando os dados de 2025 (Câmara):
+
+| Categoria (2025)    | Só cerca de Tukey | Só P99 | Por quê                                                  |
+| ------------------- | ----------------- | ------ | -------------------------------------------------------- |
+| Combustíveis        | 2.147 despesas    | 712    | Distribuição muito assimétrica: a cerca (R$ 684) é baixa |
+| Locação de veículos | 0                 | 71     | Valores quase fixos: o P99 marca contratos comuns        |
+| Passagens (SIGEPA)  | 7                 | 299    | Idem                                                     |
+
+Com as duas condições, só sobra o que é extremo pelas duas medidas. Estornos (valores
+negativos) não entram no padrão, e categorias com menos de 50 despesas no ano são ignoradas.
+A lista mostra as 10 despesas mais distantes da mediana, com a mediana ao lado.
+
+**2. Concentração em um fornecedor.** Um único fornecedor com CNPJ/CPF recebeu **50% ou mais**
+do total do ano, a partir de R$ 50 mil. Três ajustes vieram dos dados:
+
+- **Passagens ficam fora**: são compradas pelos sistemas das casas e se concentram
+  naturalmente em poucas companhias. Com elas, TAM e a agência de viagens apareciam como o
+  maior fornecedor de dezenas de deputados.
+- **Fornecedores sem documento ficam fora**: "RAMAL" (telefonia, sem CNPJ válido) juntaria
+  empresas diferentes sob o mesmo nome.
+- **Limiar de 50%**: com 30%, metade dos deputados seria destacada (aluguel de veículo e de
+  escritório pesam naturalmente); com 50%, ~10% (68 de 562 em 2025).
+
+**Alternativa descartada: fornecedor exclusivo** (que só recebe de um parlamentar). Em 2025,
+476 deputados teriam ao menos um fornecedor exclusivo acima de R$ 50 mil. São, em geral,
+prestadores locais contratados por um único gabinete (divulgação, escritório, locação de
+veículos, nessa ordem): a regra destacaria o normal.
+
+**Cálculo na API, não no worker.** O padrão de cada categoria (quartis e P99 de ~200 mil
+linhas) leva ~270 ms no Postgres e fica em cache por casa e ano; a resposta do parlamentar
+também. Calcular na hora mantém tudo coerente com os dados sem uma tabela derivada a mais
+para manter. Primeira chamada: ~1,5 s; com cache: ~40 ms.
+
 ## Front-end: renderização por requisição com cache de dados
 
 O rodapé mostra a data da última sincronização em todas as páginas. Se fosse

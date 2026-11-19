@@ -18,6 +18,7 @@ import {
   parlamentarDetalheSchema,
   type ParlamentaresQuery,
   parlamentarResumoSchema,
+  pontosAtencaoSchema,
   syncStatusSchema,
 } from '@raio-x/shared';
 import { z } from 'zod';
@@ -120,6 +121,13 @@ export const api = {
     apiGet(
       `/parlamentares/${encodeURIComponent(id)}/gastos-mensais${montarQuery({ ano })}`,
       z.array(gastoMensalSchema),
+      UMA_HORA,
+    ),
+
+  pontosAtencao: (id: string, ano?: number) =>
+    apiGet(
+      `/parlamentares/${encodeURIComponent(id)}/pontos-de-atencao${montarQuery({ ano })}`,
+      pontosAtencaoSchema,
       UMA_HORA,
     ),
 

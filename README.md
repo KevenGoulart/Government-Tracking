@@ -4,7 +4,7 @@ Plataforma web para explorar os gastos públicos de parlamentares brasileiros a 
 
 > Apresentação neutra: o projeto mostra números e a fonte oficial, sem conclusões editoriais.
 
-**Status:** Fases 1 a 3 concluídas (Câmara, Senado, emendas, rankings, fornecedores, comparação e cache) · próxima: Fase 4 (pontos de atenção).
+**Status:** Fases 1 a 4 concluídas (Câmara, Senado, emendas, rankings, fornecedores, comparação, cache e pontos de atenção) · próxima: Fase 5 (deploy).
 
 ## Arquitetura
 
@@ -55,33 +55,34 @@ O front-end **nunca** chama as APIs do governo diretamente: tudo passa por inges
 
 ## Funcionalidades
 
-| Página                      | O que mostra                                                                                                                |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `/`                         | Totais do ano por casa (Câmara ou Senado): categorias, maiores totais e gastos por estado (total e média por parlamentar)   |
-| `/parlamentares`            | Busca por nome (tolera erros de digitação), casa, partido e UF                                                              |
-| `/parlamentares/[id]`       | Evolução mensal, categorias, maiores fornecedores, despesas (com link para a nota fiscal, quando a fonte publica) e emendas |
-| `/ranking`                  | Total por parlamentar no ano, por casa, com filtros de categoria, partido e UF                                              |
-| `/fornecedores/[documento]` | Quanto o fornecedor recebeu e de quais parlamentares                                                                        |
-| `/comparar`                 | 2 a 4 parlamentares da mesma casa lado a lado: totais, evolução mensal e categorias                                         |
+| Página                      | O que mostra                                                                                                                                   |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/`                         | Totais do ano por casa (Câmara ou Senado): categorias, maiores totais e gastos por estado (total e média por parlamentar)                      |
+| `/parlamentares`            | Busca por nome (tolera erros de digitação), casa, partido e UF                                                                                 |
+| `/parlamentares/[id]`       | Evolução mensal, categorias, maiores fornecedores, pontos de atenção, despesas (com link para a nota fiscal, quando a fonte publica) e emendas |
+| `/ranking`                  | Total por parlamentar no ano, por casa, com filtros de categoria, partido e UF                                                                 |
+| `/fornecedores/[documento]` | Quanto o fornecedor recebeu e de quais parlamentares                                                                                           |
+| `/comparar`                 | 2 a 4 parlamentares da mesma casa lado a lado: totais, evolução mensal e categorias                                                            |
 
 Todas as páginas mostram a fonte oficial e a data da última sincronização, funcionam em
 tema claro e escuro, no celular, e são verificadas com axe-core nos testes e2e.
 
 ### API
 
-| Endpoint                                | Descrição                                                    |
-| --------------------------------------- | ------------------------------------------------------------ |
-| `GET /parlamentares`                    | Lista com busca e filtros, paginada                          |
-| `GET /parlamentares/:id`                | Dados e resumo de gastos                                     |
-| `GET /parlamentares/:id/despesas`       | Despesas com filtros de ano, mês e categoria                 |
-| `GET /parlamentares/:id/gastos-mensais` | Série mensal                                                 |
-| `GET /rankings`                         | Total por parlamentar (casa, ano, categoria, partido, UF)    |
-| `GET /estatisticas`                     | Totais gerais da casa, por categoria e por estado            |
-| `GET /parlamentares/:id/emendas`        | Emendas do parlamentar: totais, por área e localidade, lista |
-| `GET /categorias?casa=`                 | Categorias de despesa de cada casa                           |
-| `GET /fornecedores/:documento`          | Fornecedor e parlamentares que o pagaram                     |
-| `GET /comparacao?ids=a,b`               | Comparação de 2 a 4 parlamentares                            |
-| `GET /meta/sync`                        | Última sincronização de cada fonte                           |
+| Endpoint                                   | Descrição                                                          |
+| ------------------------------------------ | ------------------------------------------------------------------ |
+| `GET /parlamentares`                       | Lista com busca e filtros, paginada                                |
+| `GET /parlamentares/:id`                   | Dados e resumo de gastos                                           |
+| `GET /parlamentares/:id/despesas`          | Despesas com filtros de ano, mês e categoria                       |
+| `GET /parlamentares/:id/gastos-mensais`    | Série mensal                                                       |
+| `GET /rankings`                            | Total por parlamentar (casa, ano, categoria, partido, UF)          |
+| `GET /estatisticas`                        | Totais gerais da casa, por categoria e por estado                  |
+| `GET /parlamentares/:id/emendas`           | Emendas do parlamentar: totais, por área e localidade, lista       |
+| `GET /parlamentares/:id/pontos-de-atencao` | Despesas atípicas para a categoria e concentração em um fornecedor |
+| `GET /categorias?casa=`                    | Categorias de despesa de cada casa                                 |
+| `GET /fornecedores/:documento`             | Fornecedor e parlamentares que o pagaram                           |
+| `GET /comparacao?ids=a,b`                  | Comparação de 2 a 4 parlamentares                                  |
+| `GET /meta/sync`                           | Última sincronização de cada fonte                                 |
 
 Documentação interativa em `/docs` (Swagger). Os endpoints agregados usam cache em Redis.
 
@@ -125,6 +126,19 @@ pnpm dev
 | `pnpm db:migrate`   | Cria/aplica migrations em desenvolvimento                                          |
 | `pnpm format`       | Formata o código com Prettier                                                      |
 
+## Pontos de atenção
+
+Indicadores estatísticos simples, sem juízo de valor, exibidos na página do parlamentar com a
+regra explicada:
+
+- **Despesa atípica**: acima do percentil 99 **e** de Q3 + 3×IQR das despesas da mesma
+  categoria no ano (todos os parlamentares da casa).
+- **Concentração**: um fornecedor com CNPJ/CPF recebeu 50% ou mais do total do ano, sem contar
+  passagens, a partir de R$ 50 mil.
+
+Os limiares foram calibrados com os dados reais; o porquê de cada um está em
+[docs/decisoes.md](docs/decisoes.md#pontos-de-atenção-fase-4).
+
 ## Decisões técnicas
 
 As decisões não óbvias estão registradas, com o motivo de cada uma, em [docs/decisoes.md](docs/decisoes.md). Destaques:
@@ -158,5 +172,5 @@ As decisões não óbvias estão registradas, com o motivo de cada uma, em [docs
 - [x] **Fase 1**: ingestão da Câmara, API de parlamentares/despesas, busca e página do parlamentar
 - [x] **Fase 2**: rankings, fornecedores, comparação, estatísticas, cache
 - [x] **Fase 3**: Senado e emendas parlamentares
-- [ ] **Fase 4**: pontos de atenção (detecção simples de valores fora do padrão)
+- [x] **Fase 4**: pontos de atenção (detecção simples de valores fora do padrão)
 - [ ] **Fase 5**: deploy e README final

@@ -278,6 +278,8 @@ describe('Parlamentares (e2e)', () => {
         '/parlamentares/{id}',
         '/parlamentares/{id}/despesas',
         '/parlamentares/{id}/gastos-mensais',
+        '/parlamentares/{id}/emendas',
+        '/parlamentares/{id}/pontos-de-atencao',
         '/meta/sync',
       ]),
     );

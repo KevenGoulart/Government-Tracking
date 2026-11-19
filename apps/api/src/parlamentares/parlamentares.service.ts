@@ -19,6 +19,7 @@ import {
   type TotalFornecedor,
 } from '@raio-x/shared';
 import { decimal } from '../common/decimal';
+import { INCLUDE_DESPESA, mapearDespesa } from '../common/despesa';
 import { PrismaService } from '../prisma/prisma.service';
 
 const MAX_FORNECEDORES_RESUMO = 10;
@@ -170,29 +171,13 @@ export class ParlamentaresService {
         orderBy,
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
-        include: {
-          categoria: { select: { slug: true, nome: true } },
-          fornecedor: { select: { id: true, nome: true, documento: true } },
-        },
+        include: INCLUDE_DESPESA,
       }),
       this.prisma.despesa.count({ where }),
     ]);
 
     return {
-      data: registros.map((d) => ({
-        id: d.id,
-        ano: d.ano,
-        mes: d.mes,
-        dataDocumento: d.dataDocumento ? d.dataDocumento.toISOString().slice(0, 10) : null,
-        categoria: d.categoria,
-        fornecedor: d.fornecedor,
-        tipoDocumento: d.tipoDocumento,
-        numDocumento: d.numDocumento,
-        valorDocumento: decimal(d.valorDocumento),
-        valorGlosa: decimal(d.valorGlosa),
-        valorLiquido: decimal(d.valorLiquido),
-        urlDocumento: d.urlDocumento,
-      })),
+      data: registros.map(mapearDespesa),
       meta: buildPaginationMeta(query, total),
     };
   }

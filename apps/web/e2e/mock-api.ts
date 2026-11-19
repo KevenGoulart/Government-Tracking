@@ -171,6 +171,39 @@ const detalheAna = {
   },
 };
 
+// Pontos de atenção da Ana: uma despesa atípica e concentração no posto (sem passagens)
+const pontosAna = {
+  ano: 2025,
+  valoresAtipicos: {
+    quantidade: 1,
+    total: '100.00',
+    data: [
+      {
+        ...despesasAna[0],
+        referencia: { mediana: '25.00', limite: '90.00', quantidadeCategoria: 120 },
+        vezesMediana: 4,
+      },
+    ],
+  },
+  concentracao: {
+    fornecedor: {
+      id: 'cmforn000000000000000posto',
+      nome: 'POSTO NATIVUS LTDA',
+      documento: '04971874000147',
+    },
+    total: '2000.00',
+    totalBase: '2000.00',
+    participacao: 1,
+    quantidade: 20,
+  },
+};
+
+const semPontos = {
+  ano: 2025,
+  valoresAtipicos: { quantidade: 0, total: '0.00', data: [] },
+  concentracao: null,
+};
+
 const ranking = [
   { posicao: 1, parlamentar: parlamentares[0], total: '7000.00', quantidade: 25 },
   { posicao: 2, parlamentar: parlamentares[1], total: '250.00', quantidade: 2 },
@@ -326,6 +359,11 @@ createServer((req, res) => {
   const rotaEmendas = /^\/parlamentares\/([^/]+)\/emendas$/.exec(caminho);
   if (rotaEmendas) {
     return json(res, 200, rotaEmendas[1] === detalheAna.id ? emendasAna : semEmendas);
+  }
+
+  const rotaPontos = /^\/parlamentares\/([^/]+)\/pontos-de-atencao$/.exec(caminho);
+  if (rotaPontos) {
+    return json(res, 200, rotaPontos[1] === detalheAna.id ? pontosAna : semPontos);
   }
 
   const rota = /^\/parlamentares\/([^/]+)(\/despesas|\/gastos-mensais)?$/.exec(caminho);

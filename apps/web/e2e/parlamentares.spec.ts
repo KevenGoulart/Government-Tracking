@@ -284,6 +284,17 @@ test.describe('estatísticas, ranking, fornecedor e comparação', () => {
     await expect(tabela).toContainText('CAMPINAS - SP');
   });
 
+  test('pontos de atenção: despesa atípica, concentração e critérios', async ({ page }) => {
+    await page.goto(ANA);
+    const secao = page.locator('#pontos-de-atencao');
+    await expect(secao.getByRole('heading', { name: 'Pontos de atenção' })).toBeVisible();
+    await expect(secao.getByText('Não indicam irregularidade')).toBeVisible();
+    await expect(secao.getByText(/4× a mediana da categoria/)).toBeVisible();
+    await expect(secao.getByText('100%')).toBeVisible();
+    await secao.getByText('Como é calculado').click();
+    await expect(secao.getByText(/maior que 99% das despesas/)).toBeVisible();
+  });
+
   test('emendas: estado vazio para quem não tem emendas vinculadas', async ({ page }) => {
     await page.goto('/parlamentares/cmdavi000000000000000000d4');
     await expect(page.getByText(/Nenhuma emenda individual vinculada/)).toBeVisible();

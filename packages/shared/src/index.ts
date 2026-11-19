@@ -9,4 +9,5 @@ export * from './schemas/despesa';
 export * from './schemas/emenda';
 export * from './schemas/pagination';
 export * from './schemas/parlamentar';
+export * from './schemas/pontos-atencao';
 export * from './schemas/sync';

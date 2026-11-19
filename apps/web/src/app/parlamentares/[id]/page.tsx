@@ -2,6 +2,7 @@ import {
   type Categoria,
   despesasQuerySchema,
   type GastoMensal,
+  type PontosAtencao,
   parlamentarDetalheQuerySchema,
 } from '@raio-x/shared';
 import { ExternalLink } from 'lucide-react';
@@ -15,6 +16,7 @@ import { GastosMensais } from '@/components/parlamentar/gastos-mensais';
 import { GastosPorCategoria } from '@/components/parlamentar/gastos-por-categoria';
 import { MaioresFornecedores } from '@/components/parlamentar/maiores-fornecedores';
 import { SecaoEmendas } from '@/components/parlamentar/secao-emendas';
+import { SecaoPontosAtencao } from '@/components/parlamentar/secao-pontos-atencao';
 import { SeletorAno } from '@/components/parlamentar/seletor-ano';
 import { FiltrosDespesas, TabelaDespesas } from '@/components/parlamentar/tabela-despesas';
 import { Badge } from '@/components/ui/badge';
@@ -78,14 +80,20 @@ export default async function ParlamentarPage({ params, searchParams }: Props) {
   const anoEmendas = Number(brutos.anoEmendas) || ano || undefined;
   const paginaEmendas = Number(brutos.paginaEmendas) || 1;
 
-  const [[gastos, despesas, categorias], emendas] = await Promise.all([
+  const [[gastos, despesas, categorias, pontos], emendas] = await Promise.all([
     ano
       ? Promise.all([
           api.gastosMensais(id, ano),
           api.despesas(id, { ...filtros, ano }),
           api.categorias(parlamentar.casa),
+          api.pontosAtencao(id, ano),
         ])
-      : Promise.resolve<[GastoMensal[], null, Categoria[]]>([[], null, []]),
+      : Promise.resolve<[GastoMensal[], null, Categoria[], PontosAtencao | null]>([
+          [],
+          null,
+          [],
+          null,
+        ]),
     api.emendas(id, { ano: anoEmendas, page: paginaEmendas, pageSize: 10 }),
   ]);
 
@@ -206,6 +214,8 @@ export default async function ParlamentarPage({ params, searchParams }: Props) {
               </CardContent>
             </Card>
           </div>
+
+          {pontos && <SecaoPontosAtencao pontos={pontos} />}
 
           <section
             id="despesas"
