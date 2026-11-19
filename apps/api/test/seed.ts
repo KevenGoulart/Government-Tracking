@@ -133,5 +133,5 @@ export async function seed(prisma: PrismaClient) {
     ],
   });
 
-  return { ana, bruno, carla };
+  return { ana, bruno, carla, posto, grafica };
 }
