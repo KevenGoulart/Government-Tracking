@@ -1,0 +1,153 @@
+import AxeBuilder from '@axe-core/playwright';
+import { expect, type Page, test } from '@playwright/test';
+
+const ANA = '/parlamentares/cmana0000000000000000000a1';
+
+async function semViolacoesDeAcessibilidade(page: Page) {
+  const { violations } = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
+  expect(
+    violations.map(
+      (v) =>
+        `${v.id}: ${v.help} -> ${v.nodes.map((n) => `${n.target.join(' ')} [${n.failureSummary ?? ''}]`).join(' | ')}`,
+    ),
+  ).toEqual([]);
+}
+
+test.describe('busca de parlamentares', () => {
+  test('lista parlamentares e busca por nome, refletindo o filtro na URL', async ({ page }) => {
+    await page.goto('/parlamentares');
+    await expect(page.getByRole('heading', { name: 'Deputados federais' })).toBeVisible();
+    await expect(page.getByText('3 parlamentares encontrados')).toBeVisible();
+
+    await page.getByLabel('Nome').fill('ana lucia');
+    await page.getByRole('button', { name: 'Buscar' }).click();
+
+    await expect(page).toHaveURL(/nome=ana\+lucia/);
+    await expect(page.getByText('1 parlamentar encontrado')).toBeVisible();
+    await expect(page.getByRole('link', { name: /Ana Lúcia Souza/ })).toBeVisible();
+  });
+
+  test('abre um link compartilhado com filtros já aplicados', async ({ page }) => {
+    await page.goto('/parlamentares?uf=RJ');
+    await expect(page.getByLabel('UF')).toHaveValue('RJ');
+    await expect(page.getByRole('link', { name: /Bruno Carvalho/ })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Ana Lúcia/ })).toHaveCount(0);
+  });
+
+  test('mostra estado vazio e permite limpar filtros', async ({ page }) => {
+    await page.goto('/parlamentares?nome=inexistente');
+    await expect(page.getByText(/Nenhum parlamentar encontrado/)).toBeVisible();
+    await page.getByRole('link', { name: 'Limpar' }).click();
+    await expect(page).toHaveURL(/\/parlamentares$/);
+  });
+
+  test('ignora parâmetros inválidos na URL', async ({ page }) => {
+    await page.goto('/parlamentares?uf=XX&page=abc');
+    await expect(page.getByText('3 parlamentares encontrados')).toBeVisible();
+  });
+
+  test('não tem violações de acessibilidade', async ({ page }) => {
+    await page.goto('/parlamentares');
+    await semViolacoesDeAcessibilidade(page);
+  });
+});
+
+test.describe('página do parlamentar', () => {
+  test('mostra dados, resumo do ano, gráficos e fornecedores', async ({ page }) => {
+    await page.goto(ANA);
+
+    await expect(page.getByRole('heading', { level: 1, name: 'Ana Lúcia Souza' })).toBeVisible();
+    await expect(page).toHaveTitle(/Ana Lúcia Souza/);
+    await expect(page.getByText('Nome civil: ANA LÚCIA SOUZA')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Cota parlamentar em 2025' })).toBeVisible();
+    await expect(page.getByText(/R\$\s7\.000,00/).first()).toBeVisible();
+
+    // Gráfico mensal com tabela equivalente para leitores de tela
+    await expect(page.getByRole('table', { name: /Gasto mensal em 2025/ })).toBeAttached();
+    // Categorias em caixa de frase, preservando siglas
+    await expect(page.getByRole('link', { name: /Passagem aérea - SIGEPA/ })).toBeVisible();
+    await expect(page.getByText('02.012.862/0001-60').first()).toBeVisible();
+
+    const perfil = page.getByRole('link', { name: /Perfil na Câmara/ });
+    await expect(perfil).toHaveAttribute('href', 'https://www.camara.leg.br/deputados/1001');
+  });
+
+  test('lista despesas com link para a nota fiscal e paginação', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(ANA);
+
+    const tabela = page.getByRole('table', { name: /Despesas da cota parlamentar/ });
+    await expect(tabela.getByRole('row')).toHaveCount(21); // cabeçalho + 20
+    await expect(tabela.getByRole('link', { name: /Nota fiscal/ }).first()).toHaveAttribute(
+      'href',
+      /camara\.leg\.br\/doc\//,
+    );
+
+    await page.getByRole('link', { name: 'Próxima' }).click();
+    await expect(page).toHaveURL(/page=2/);
+    await expect(tabela.getByRole('row')).toHaveCount(6); // cabeçalho + 5
+    await expect(page.getByText('Página 2 de 2')).toBeVisible();
+  });
+
+  test('filtra despesas por categoria clicando no gráfico', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(ANA);
+    await page.getByRole('link', { name: /Passagem aérea - SIGEPA/ }).click();
+
+    await expect(page).toHaveURL(/categoria=passagem-aerea-sigepa/);
+    await expect(page.getByLabel('Categoria')).toHaveValue('passagem-aerea-sigepa');
+    const tabela = page.getByRole('table', { name: /Despesas da cota parlamentar/ });
+    await expect(tabela.getByRole('row')).toHaveCount(6);
+    await expect(tabela.getByText('Sem documento digital').first()).toBeVisible();
+  });
+
+  test('ordena e filtra pelo formulário', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(ANA);
+    await page.getByLabel('Ordenar por').selectOption('valor-desc');
+    await page.getByLabel('Mês').selectOption('2');
+    await page.getByRole('button', { name: 'Filtrar' }).click();
+
+    await expect(page).toHaveURL(/mes=2/);
+    await expect(page).toHaveURL(/ordenacao=valor-desc/);
+    const primeiraLinha = page
+      .getByRole('table', { name: /Despesas da cota parlamentar/ })
+      .getByRole('row')
+      .nth(1);
+    await expect(primeiraLinha).toContainText('R$ 1.000,00');
+  });
+
+  test('mostra mensagem para parlamentar sem despesas', async ({ page }) => {
+    await page.goto('/parlamentares/cmcarla00000000000000000c3');
+    await expect(page.getByText(/Não há despesas da cota parlamentar/)).toBeVisible();
+  });
+
+  test('responde com página de não encontrado para id inexistente', async ({ page }) => {
+    const resposta = await page.goto('/parlamentares/cmnaoexiste0000000000000zz');
+    expect(resposta?.status()).toBe(404);
+    await expect(page.getByRole('heading', { name: 'Parlamentar não encontrado' })).toBeVisible();
+  });
+
+  test('não tem violações de acessibilidade (claro e escuro)', async ({ page }) => {
+    await page.goto(ANA);
+    await semViolacoesDeAcessibilidade(page);
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.reload();
+    await semViolacoesDeAcessibilidade(page);
+  });
+});
+
+test('todas as páginas mostram a fonte oficial e a data da sincronização', async ({ page }) => {
+  await page.goto('/');
+  const rodape = page.getByRole('contentinfo');
+  await expect(rodape.getByRole('link', { name: /Dados Abertos da Câmara/ })).toBeVisible();
+  await expect(rodape).toContainText('Dados sincronizados em 19/11/2026');
+});
+
+test('alterna o tema escuro', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Alternar tema claro/escuro' }).click();
+  await expect(page.locator('html')).toHaveClass(/dark/);
+});
