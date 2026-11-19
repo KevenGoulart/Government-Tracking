@@ -35,7 +35,73 @@ const parlamentares = [
     fotoUrl: null,
     emExercicio: false,
   },
+  {
+    id: 'cmdavi000000000000000000d4',
+    casa: 'SENADO',
+    nome: 'Davi Senador',
+    partido: 'PSD',
+    uf: 'AP',
+    fotoUrl: null,
+    emExercicio: true,
+  },
 ];
+
+const categoriasSenado = [{ slug: 'senado-aluguel-de-imoveis', nome: 'Aluguel de imóveis' }];
+
+const emendasAna = {
+  ano: 2025,
+  anosDisponiveis: [{ ano: 2025, empenhado: '4000.00', pago: '3400.00', quantidade: 2 }],
+  totais: { empenhado: '4000.00', pago: '3400.00', quantidade: 2 },
+  porFuncao: [
+    { funcao: 'Educação', empenhado: '3000.00', pago: '3000.00', quantidade: 1 },
+    { funcao: 'Saúde', empenhado: '1000.00', pago: '400.00', quantidade: 1 },
+  ],
+  porLocalidade: [
+    { localidade: 'CAMPINAS - SP', empenhado: '3000.00', pago: '3000.00', quantidade: 1 },
+    { localidade: 'SÃO PAULO - SP', empenhado: '1000.00', pago: '400.00', quantidade: 1 },
+  ],
+  data: [
+    {
+      id: 'cmemenda000000000000000e2',
+      codigo: '202500000002',
+      ano: 2025,
+      numero: '0002',
+      tipo: 'Emenda Individual - Transferências Especiais',
+      observacaoAutor: null,
+      localidade: 'CAMPINAS - SP',
+      funcao: 'Educação',
+      subfuncao: 'Ensino fundamental',
+      valorEmpenhado: '3000.00',
+      valorLiquidado: '3000.00',
+      valorPago: '3000.00',
+    },
+    {
+      id: 'cmemenda000000000000000e1',
+      codigo: '202500000001',
+      ano: 2025,
+      numero: '0001',
+      tipo: 'Emenda Individual - Transferências com Finalidade Definida',
+      observacaoAutor: null,
+      localidade: 'SÃO PAULO - SP',
+      funcao: 'Saúde',
+      subfuncao: 'Atenção básica',
+      valorEmpenhado: '1000.00',
+      valorLiquidado: '400.00',
+      valorPago: '400.00',
+    },
+  ],
+  meta: { page: 1, pageSize: 10, total: 2, totalPages: 1 },
+};
+
+const semEmendas = {
+  ano: null,
+  anosDisponiveis: [],
+  totais: { empenhado: '0.00', pago: '0.00', quantidade: 0 },
+  porFuncao: [],
+  porLocalidade: [],
+  data: [],
+  meta: { page: 1, pageSize: 10, total: 0, totalPages: 1 },
+};
 
 const categorias = [
   { slug: 'combustiveis-e-lubrificantes', nome: 'COMBUSTÍVEIS E LUBRIFICANTES' },
@@ -110,6 +176,10 @@ const ranking = [
   { posicao: 2, parlamentar: parlamentares[1], total: '250.00', quantidade: 2 },
 ];
 
+const rankingSenado = [
+  { posicao: 1, parlamentar: parlamentares[3], total: '900.00', quantidade: 1 },
+];
+
 const semAcento = (s: string) =>
   s
     .normalize('NFD')
@@ -149,22 +219,45 @@ createServer((req, res) => {
       atualizadoEm: '2026-11-19T10:00:00.000Z',
     });
   }
-  if (caminho === '/categorias') return json(res, 200, categorias);
+  if (caminho === '/categorias') {
+    if (p.get('casa') === 'SENADO') return json(res, 200, categoriasSenado);
+    return json(
+      res,
+      200,
+      p.get('casa') === 'CAMARA' ? categorias : [...categorias, ...categoriasSenado],
+    );
+  }
   if (caminho === '/parlamentares/filtros') {
-    return json(res, 200, { partidos: ['PL', 'PT'], ufs: ['MG', 'RJ', 'SP'] });
+    return json(res, 200, { partidos: ['PL', 'PSD', 'PT'], ufs: ['AP', 'MG', 'RJ', 'SP'] });
   }
   if (caminho === '/parlamentares') {
     const nome = p.get('nome');
     const filtrados = parlamentares.filter(
       (x) =>
         (!nome || semAcento(x.nome).includes(semAcento(nome))) &&
+        (!p.get('casa') || x.casa === p.get('casa')) &&
         (!p.get('partido') || x.partido === p.get('partido')) &&
         (!p.get('uf') || x.uf === p.get('uf')),
     );
     return json(res, 200, paginar(filtrados, p));
   }
+  if (caminho === '/estatisticas' && p.get('casa') === 'SENADO') {
+    return json(res, 200, {
+      casa: 'SENADO',
+      ano: 2025,
+      anosDisponiveis: [2025],
+      total: '900.00',
+      quantidadeDespesas: 1,
+      quantidadeParlamentares: 1,
+      quantidadeFornecedores: 1,
+      porCategoria: [{ ...categoriasSenado[0], total: '900.00' }],
+      porUf: [{ uf: 'AP', total: '900.00', parlamentares: 1, mediaPorParlamentar: '900.00' }],
+      maioresGastos: rankingSenado,
+    });
+  }
   if (caminho === '/estatisticas') {
     return json(res, 200, {
+      casa: 'CAMARA',
       ano: Number(p.get('ano') ?? 2025),
       anosDisponiveis: [2025, 2024],
       total: '7250.00',
@@ -180,7 +273,8 @@ createServer((req, res) => {
     });
   }
   if (caminho === '/rankings') {
-    const filtrado = ranking.filter(
+    const casa = p.get('casa') ?? 'CAMARA';
+    const filtrado = (casa === 'SENADO' ? rankingSenado : ranking).filter(
       (i) =>
         (!p.get('uf') || i.parlamentar?.uf === p.get('uf')) &&
         (!p.get('partido') || i.parlamentar?.partido === p.get('partido')),
@@ -189,7 +283,7 @@ createServer((req, res) => {
       filtrado.map((i, n) => ({ ...i, posicao: n + 1 })),
       p,
     );
-    return json(res, 200, { ano: Number(p.get('ano') ?? 2025), ...pagina });
+    return json(res, 200, { casa, ano: Number(p.get('ano') ?? 2025), ...pagina });
   }
   if (caminho === '/fornecedores/02012862000160') {
     return json(res, 200, {
@@ -229,6 +323,11 @@ createServer((req, res) => {
     });
   }
 
+  const rotaEmendas = /^\/parlamentares\/([^/]+)\/emendas$/.exec(caminho);
+  if (rotaEmendas) {
+    return json(res, 200, rotaEmendas[1] === detalheAna.id ? emendasAna : semEmendas);
+  }
+
   const rota = /^\/parlamentares\/([^/]+)(\/despesas|\/gastos-mensais)?$/.exec(caminho);
   if (rota) {
     const [, id, sub] = rota;
@@ -256,7 +355,7 @@ createServer((req, res) => {
     if (outro && !sub) {
       return json(res, 200, {
         ...outro,
-        idExterno: '9',
+        idExterno: outro.casa === 'SENADO' ? '5000' : '9',
         nomeCivil: null,
         email: null,
         resumo: {

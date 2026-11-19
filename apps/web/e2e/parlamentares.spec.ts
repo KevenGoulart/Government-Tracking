@@ -18,8 +18,8 @@ async function semViolacoesDeAcessibilidade(page: Page) {
 test.describe('busca de parlamentares', () => {
   test('lista parlamentares e busca por nome, refletindo o filtro na URL', async ({ page }) => {
     await page.goto('/parlamentares');
-    await expect(page.getByRole('heading', { name: 'Deputados federais' })).toBeVisible();
-    await expect(page.getByText('3 parlamentares encontrados')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Parlamentares', exact: true })).toBeVisible();
+    await expect(page.getByText('4 parlamentares encontrados')).toBeVisible();
 
     await page.getByLabel('Nome').fill('ana lucia');
     await page.getByRole('button', { name: 'Buscar' }).click();
@@ -45,7 +45,7 @@ test.describe('busca de parlamentares', () => {
 
   test('ignora parâmetros inválidos na URL', async ({ page }) => {
     await page.goto('/parlamentares?uf=XX&page=abc');
-    await expect(page.getByText('3 parlamentares encontrados')).toBeVisible();
+    await expect(page.getByText('4 parlamentares encontrados')).toBeVisible();
   });
 
   test('não tem violações de acessibilidade', async ({ page }) => {
@@ -61,7 +61,9 @@ test.describe('página do parlamentar', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Ana Lúcia Souza' })).toBeVisible();
     await expect(page).toHaveTitle(/Ana Lúcia Souza/);
     await expect(page.getByText('Nome civil: ANA LÚCIA SOUZA')).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Cota parlamentar em 2025' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Cota parlamentar (CEAP) em 2025' }),
+    ).toBeVisible();
     await expect(page.getByText(/R\$\s7\.000,00/).first()).toBeVisible();
 
     // Gráfico mensal com tabela equivalente para leitores de tela
@@ -70,7 +72,7 @@ test.describe('página do parlamentar', () => {
     await expect(page.getByRole('link', { name: /Passagem aérea - SIGEPA/ })).toBeVisible();
     await expect(page.getByText('02.012.862/0001-60').first()).toBeVisible();
 
-    const perfil = page.getByRole('link', { name: /Perfil na Câmara/ });
+    const perfil = page.getByRole('link', { name: /Perfil no site da Câmara/ });
     await expect(perfil).toHaveAttribute('href', 'https://www.camara.leg.br/deputados/1001');
   });
 
@@ -100,7 +102,7 @@ test.describe('página do parlamentar', () => {
     await expect(page.getByLabel('Categoria')).toHaveValue('passagem-aerea-sigepa');
     const tabela = page.getByRole('table', { name: /Despesas da cota parlamentar/ });
     await expect(tabela.getByRole('row')).toHaveCount(6);
-    await expect(tabela.getByText('Sem documento digital').first()).toBeVisible();
+    await expect(tabela.getByText('Comprovante não publicado').first()).toBeVisible();
   });
 
   test('ordena e filtra pelo formulário', async ({ page }) => {
@@ -157,18 +159,20 @@ test.describe('estatísticas, ranking, fornecedor e comparação', () => {
 
   test('home mostra totais e leva ao ranking por categoria', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Cota parlamentar em 2025' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Cota parlamentar (CEAP) em 2025' }),
+    ).toBeVisible();
     await expect(page.getByText(/R\$\s7\.250,00/)).toBeVisible();
     await expect(page.getByRole('table', { name: 'Maiores totais de 2025' })).toBeVisible();
 
     await page.getByRole('link', { name: /Passagem aérea - SIGEPA/ }).click();
-    await expect(page).toHaveURL(/\/ranking\?ano=2025&categoria=passagem-aerea-sigepa/);
+    await expect(page).toHaveURL(/\/ranking\?casa=CAMARA&ano=2025&categoria=passagem-aerea-sigepa/);
   });
 
   test('ranking aplica filtros pelo formulário', async ({ page }) => {
     await page.goto('/ranking');
     await expect(page.getByRole('heading', { name: 'Ranking de gastos' })).toBeVisible();
-    const tabela = page.getByRole('table', { name: /Ranking de gastos de 2025/ });
+    const tabela = page.getByRole('table', { name: /Ranking de gastos de 2025 \(Câmara\)/ });
     await expect(tabela.getByRole('row')).toHaveCount(3);
 
     await page.getByLabel('UF').selectOption('RJ');
@@ -219,8 +223,58 @@ test.describe('estatísticas, ranking, fornecedor e comparação', () => {
     await expect(page.getByText('Selecionados (1 de 4)')).toBeVisible();
   });
 
+  test('Senado: filtro na busca, página do senador, ranking e home separados', async ({ page }) => {
+    await page.goto('/parlamentares');
+    await page.getByLabel('Casa').selectOption('SENADO');
+    await page.getByRole('button', { name: 'Buscar' }).click();
+    await expect(page).toHaveURL(/casa=SENADO/);
+    await expect(page.getByText('1 parlamentar encontrado')).toBeVisible();
+
+    await page.getByRole('link', { name: /Davi Senador/ }).click();
+    await expect(page.getByText(/Senador\(a\) · PSD · AP/)).toBeVisible();
+    await expect(page.getByRole('link', { name: /Perfil no site do Senado/ })).toHaveAttribute(
+      'href',
+      'https://www25.senado.leg.br/web/senadores/senador/-/perfil/5000',
+    );
+
+    await page.goto('/ranking?casa=SENADO');
+    const tabela = page.getByRole('table', { name: /Ranking de gastos de 2025 \(Senado\)/ });
+    await expect(tabela).toContainText('Davi Senador');
+    await expect(page.getByText('1 senadores com despesas em 2025')).toBeVisible();
+
+    await page.goto('/');
+    await page
+      .getByRole('navigation', { name: 'Casa legislativa' })
+      .getByRole('link', { name: 'Senado' })
+      .click();
+    await expect(page).toHaveURL(/casa=SENADO/);
+    await expect(
+      page.getByRole('heading', { name: 'Cota parlamentar (CEAPS) em 2025' }),
+    ).toBeVisible();
+  });
+
+  test('emendas: totais, áreas e lista na página do parlamentar', async ({ page }) => {
+    await page.goto(ANA);
+    const secao = page.locator('#emendas');
+    await expect(
+      secao.getByRole('heading', { name: 'Emendas parlamentares em 2025' }),
+    ).toBeVisible();
+    await expect(secao.getByText(/R\$\s4\.000,00/)).toBeVisible();
+    await expect(secao.getByText('Educação').first()).toBeVisible();
+    const tabela = secao.getByRole('table', { name: /Emendas de 2025/ });
+    await expect(tabela.getByRole('row')).toHaveCount(3);
+    await expect(tabela).toContainText('CAMPINAS - SP');
+  });
+
+  test('emendas: estado vazio para quem não tem emendas vinculadas', async ({ page }) => {
+    await page.goto('/parlamentares/cmdavi000000000000000000d4');
+    await expect(page.getByText(/Nenhuma emenda individual vinculada/)).toBeVisible();
+  });
+
   for (const [nome, url] of [
     ['home', '/'],
+    ['home do Senado', '/?casa=SENADO'],
+    ['senador', '/parlamentares/cmdavi000000000000000000d4'],
     ['ranking', '/ranking'],
     ['fornecedor', '/fornecedores/02012862000160'],
     ['comparação', `/comparar?ids=cmana0000000000000000000a1,${BRUNO}`],
