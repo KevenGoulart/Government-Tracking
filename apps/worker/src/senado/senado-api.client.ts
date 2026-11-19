@@ -60,9 +60,13 @@ export interface Senador {
   email: string | null;
 }
 
-/** As fotos oficiais são servidas também via HTTPS. */
-function https(url: string | undefined): string | null {
-  return url ? url.replace(/^http:\/\//, 'https://') : null;
+/**
+ * A API informa a foto como http://www.senado.leg.br/.../senador{codigo}.jpg, que redireciona
+ * (301) para o endereço abaixo. Gravamos o destino final, em HTTPS, para não depender do
+ * redirecionamento ao exibir a imagem.
+ */
+function fotoOficial(codigo: string, url: string | undefined): string | null {
+  return url ? `https://legis.senado.leg.br/senadores/fotos-oficiais/${codigo}` : null;
 }
 
 function paraSenador(id: z.infer<typeof identificacaoSchema>, ufMandato?: string): Senador {
@@ -72,7 +76,7 @@ function paraSenador(id: z.infer<typeof identificacaoSchema>, ufMandato?: string
     nomeCompleto: id.NomeCompletoParlamentar ?? null,
     partido: id.SiglaPartidoParlamentar ?? null,
     uf: id.UfParlamentar ?? ufMandato ?? null,
-    fotoUrl: https(id.UrlFotoParlamentar),
+    fotoUrl: fotoOficial(id.CodigoParlamentar, id.UrlFotoParlamentar),
     email: id.EmailParlamentar ?? null,
   };
 }
