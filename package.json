@@ -18,7 +18,8 @@
     "db:generate": "pnpm --filter @raio-x/db generate",
     "db:migrate": "pnpm --filter @raio-x/db migrate:dev",
     "db:deploy": "pnpm --filter @raio-x/db migrate:deploy",
-    "prepare": "husky"
+    "prepare": "husky",
+    "sync:initial": "turbo run build --filter=@raio-x/worker && pnpm --filter @raio-x/worker sync inicial"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.4",

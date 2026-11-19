@@ -20,10 +20,10 @@ export const envSchema = z.object({
   DATABASE_URL: z.url(),
   REDIS_URL: z.url(),
   CAMARA_API_BASE_URL: z.url().default('https://dadosabertos.camara.leg.br/api/v2'),
+  CAMARA_COTAS_BASE_URL: z.url().default('https://www.camara.leg.br/cotas'),
   CAMARA_LEGISLATURA: z.coerce.number().int().positive().default(57),
   CAMARA_RATE_LIMIT_PER_SECOND: z.coerce.number().positive().default(3),
   SYNC_INITIAL_YEARS: yearList.default([new Date().getFullYear()]),
-  SYNC_CONCURRENCY: z.coerce.number().int().min(1).max(10).default(2),
   SYNC_CRON_ENABLED: booleanFromString.default(true),
 });
 
