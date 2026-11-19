@@ -11,17 +11,13 @@ vi.mock('next-themes', () => ({
 describe('ThemeToggle', () => {
   beforeEach(() => setTheme.mockClear());
 
-  it('alterna do tema claro para o escuro', () => {
-    resolvedTheme = 'light';
+  it.each([
+    ['light', 'dark'],
+    ['dark', 'light'],
+  ])('alterna do tema %s para o %s', (atual, proximo) => {
+    resolvedTheme = atual;
     render(<ThemeToggle />);
-    fireEvent.click(screen.getByRole('button', { name: 'Ativar tema escuro' }));
-    expect(setTheme).toHaveBeenCalledWith('dark');
-  });
-
-  it('alterna do tema escuro para o claro', () => {
-    resolvedTheme = 'dark';
-    render(<ThemeToggle />);
-    fireEvent.click(screen.getByRole('button', { name: 'Ativar tema claro' }));
-    expect(setTheme).toHaveBeenCalledWith('light');
+    fireEvent.click(screen.getByRole('button', { name: 'Alternar tema claro/escuro' }));
+    expect(setTheme).toHaveBeenCalledWith(proximo);
   });
 });
