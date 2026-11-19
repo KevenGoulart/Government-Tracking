@@ -23,6 +23,20 @@ export const envSchema = z.object({
   CAMARA_COTAS_BASE_URL: z.url().default('https://www.camara.leg.br/cotas'),
   CAMARA_LEGISLATURA: z.coerce.number().int().positive().default(57),
   CAMARA_RATE_LIMIT_PER_SECOND: z.coerce.number().positive().default(3),
+  SENADO_API_BASE_URL: z.url().default('https://legis.senado.leg.br/dadosabertos'),
+  SENADO_CEAPS_BASE_URL: z.url().default('https://www.senado.leg.br/transparencia/LAI/verba'),
+  SENADO_LEGISLATURA: z.coerce.number().int().positive().default(57),
+  TRANSPARENCIA_API_BASE_URL: z
+    .url()
+    .default('https://api.portaldatransparencia.gov.br/api-de-dados'),
+  /** Opcional: sem a chave, a sincronização de emendas fica desabilitada. */
+  TRANSPARENCIA_API_KEY: z
+    .string()
+    .trim()
+    .optional()
+    .transform((valor) => valor || undefined),
+  /** O Portal limita requisições por minuto; 1/s fica bem abaixo do limite diurno. */
+  TRANSPARENCIA_RATE_LIMIT_PER_SECOND: z.coerce.number().positive().default(1),
   SYNC_INITIAL_YEARS: yearList.default([new Date().getFullYear()]),
   SYNC_CRON_ENABLED: booleanFromString.default(true),
 });

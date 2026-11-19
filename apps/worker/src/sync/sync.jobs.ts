@@ -4,8 +4,12 @@ import { z } from 'zod';
 export const JOBS = {
   DEPUTADOS: 'camara:deputados',
   DESPESAS: 'camara:despesas',
+  SENADORES: 'senado:senadores',
+  SENADO_DESPESAS: 'senado:despesas',
+  EMENDAS: 'transparencia:emendas',
 } as const;
 
+/** Dados dos jobs que processam anos (despesas das duas casas e emendas). */
 export const despesasJobSchema = z.object({
   /** Anos a sincronizar; quando omitido, usa os anos recentes. */
   anos: z.array(z.number().int().min(2008).max(2100)).min(1).optional(),

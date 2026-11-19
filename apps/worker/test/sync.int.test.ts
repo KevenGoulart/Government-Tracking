@@ -6,7 +6,7 @@ import type {
   DeputadoDetalhe,
   DeputadoLista,
 } from '../src/camara/camara-api.client';
-import type { HttpClient } from '../src/camara/http-client';
+import type { HttpClient } from '../src/comum/http-client';
 import { parseEnv } from '../src/config/env';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { DeputadosSyncService } from '../src/sync/deputados-sync.service';
