@@ -1,0 +1,115 @@
+// Modelo de dados do Raio-X Público.
+// Convenções:
+// - `idExterno` é o identificador na fonte oficial; upserts usam sempre chaves naturais.
+// - Valores monetários em Decimal(12,2) para evitar erro de ponto flutuante.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Casa {
+  CAMARA
+  SENADO
+}
+
+enum SyncStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+model Parlamentar {
+  id          String    @id @default(cuid())
+  idExterno   String
+  casa        Casa
+  nome        String
+  /// Nome em minúsculas e sem acentos, usado na busca por similaridade (pg_trgm).
+  nomeBusca   String
+  nomeCivil   String?
+  partido     String?
+  uf          String    @db.Char(2)
+  fotoUrl     String?
+  email       String?
+  emExercicio Boolean   @default(true)
+  despesas    Despesa[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([casa, idExterno])
+  @@index([partido, uf])
+  @@index([nomeBusca(ops: raw("gin_trgm_ops"))], type: Gin)
+}
+
+model Fornecedor {
+  id              String    @id @default(cuid())
+  /// Chave natural: o documento (só dígitos) ou `nome:<nomeNormalizado>` quando a fonte não informa documento.
+  chave           String    @unique
+  /// CNPJ (14 dígitos) ou CPF (11 dígitos), somente dígitos.
+  documento       String?
+  nome            String
+  nomeNormalizado String
+  despesas        Despesa[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([documento])
+}
+
+model Categoria {
+  id        String    @id @default(cuid())
+  /// Identificador estável derivado do nome oficial, ex.: "manutencao-de-escritorio-de-apoio-a-atividade-parlamentar".
+  slug      String    @unique
+  nome      String
+  despesas  Despesa[]
+  createdAt DateTime  @default(now())
+}
+
+model Despesa {
+  id             String      @id @default(cuid())
+  /// Chave natural composta montada na ingestão, ex.: "camara:<idDeputado>:<codDocumento>:<parcela>:<numRessarcimento>:<codLote>".
+  idExterno      String      @unique
+  parlamentarId  String
+  fornecedorId   String?
+  categoriaId    String
+  ano            Int
+  mes            Int
+  dataDocumento  DateTime?   @db.Date
+  tipoDocumento  String?
+  numDocumento   String?
+  valorDocumento Decimal     @db.Decimal(12, 2)
+  valorGlosa     Decimal     @default(0) @db.Decimal(12, 2)
+  valorLiquido   Decimal     @db.Decimal(12, 2)
+  urlDocumento   String?
+  parlamentar    Parlamentar @relation(fields: [parlamentarId], references: [id], onDelete: Cascade)
+  fornecedor     Fornecedor? @relation(fields: [fornecedorId], references: [id], onDelete: SetNull)
+  categoria      Categoria   @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([parlamentarId, ano, mes])
+  @@index([ano, mes])
+  @@index([categoriaId, ano])
+  @@index([fornecedorId])
+}
+
+model SyncRun {
+  id          String     @id @default(cuid())
+  /// Fonte e recurso sincronizado, ex.: "camara:deputados", "camara:despesas".
+  fonte       String
+  /// Recorte da execução, ex.: { "ano": 2025, "mes": 3 }.
+  escopo      Json?
+  inicio      DateTime   @default(now())
+  fim         DateTime?
+  status      SyncStatus @default(RUNNING)
+  processados Int        @default(0)
+  erro        String?
+
+  @@index([fonte, inicio])
+  @@index([status])
+}

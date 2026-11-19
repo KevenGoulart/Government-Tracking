@@ -1,0 +1,42 @@
+{
+  "name": "@raio-x/db",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Schema Prisma, migrations e client do banco compartilhado entre API e worker.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "prisma"
+  ],
+  "scripts": {
+    "generate": "prisma generate",
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "migrate:reset": "prisma migrate reset --force",
+    "studio": "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1"
+  },
+  "devDependencies": {
+    "@raio-x/eslint-config": "workspace:*",
+    "@raio-x/tsconfig": "workspace:*",
+    "@types/node": "^24.19.2",
+    "dotenv": "^18.0.10",
+    "eslint": "^10.15.0",
+    "prisma": "7.10.1",
+    "typescript": "~6.0.3"
+  }
+}
