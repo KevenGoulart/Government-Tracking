@@ -37,39 +37,33 @@ export class DespesasSyncService {
 
   private async executar(ano: number): Promise<ResultadoSync> {
     const url = `${this.config.CAMARA_COTAS_BASE_URL}/Ano-${ano}.csv.zip`;
-    const zip = await this.http.getBytes(url);
-    const { porDeputado, ignoradas, total } = await this.agrupar(extrairCsvDoZip(zip), ano);
+    const csv = extrairCsvDoZip(await this.http.getBytes(url));
 
-    if (porDeputado.size === 0) {
+    // 1ª passada: valida o arquivo inteiro e coleta categorias, fornecedores e deputados,
+    // sem guardar as despesas. Nada é gravado antes de o arquivo todo ser lido.
+    const analise = await this.analisar(csv, ano);
+    if (analise.parlamentares.size === 0) {
       // Proteção: um arquivo vazio ou truncado não pode apagar o ano inteiro do banco.
       throw new Error(
-        `Arquivo da cota de ${ano} não contém despesas de deputados (${total} linhas)`,
+        `Arquivo da cota de ${ano} não contém despesas de deputados (${analise.total} linhas)`,
       );
     }
 
-    const categorias = new Map<string, string>();
-    const fornecedores = new Map<string, FornecedorDaCota>();
-    const parlamentares = new Map<string, ParlamentarDaCota>();
-    for (const [ideCadastro, despesas] of porDeputado) {
-      for (const d of despesas) {
-        categorias.set(d.categoria.slug, d.categoria.nome);
-        if (!fornecedores.has(d.fornecedor.chave)) {
-          const { documento, nome, nomeNormalizado } = d.fornecedor;
-          fornecedores.set(d.fornecedor.chave, { documento, nome, nomeNormalizado });
-        }
-      }
-      const primeira = despesas[0];
-      if (primeira) parlamentares.set(ideCadastro, primeira.parlamentar);
-    }
+    const idsCategoria = await this.repository.garantirCategorias(analise.categorias);
+    const idsFornecedor = await this.repository.garantirFornecedores(analise.fornecedores);
+    const idsParlamentar = await this.repository.garantirParlamentares(analise.parlamentares);
 
-    const idsCategoria = await this.repository.garantirCategorias(categorias);
-    const idsFornecedor = await this.repository.garantirFornecedores(fornecedores);
-    const idsParlamentar = await this.repository.garantirParlamentares(parlamentares);
+    // 2ª passada: um deputado por vez. O arquivo oficial vem agrupado por deputado, então
+    // só as despesas de um deles ficam em memória (pico de ~1,4 GB → ~300 MB com o ano todo).
+    if (!analise.agrupado) {
+      this.logger.warn(`Arquivo da cota de ${ano} fora de ordem: agrupando em memória`);
+    }
+    const blocos = analise.agrupado ? this.blocosEmSequencia(csv) : this.blocosEmMemoria(csv);
 
     let inseridas = 0;
     let removidas = 0;
     let processadas = 0;
-    for (const [ideCadastro, despesas] of porDeputado) {
+    for await (const [ideCadastro, despesas] of blocos) {
       const parlamentarId = idsParlamentar.get(ideCadastro);
       if (!parlamentarId) throw new Error(`Parlamentar ${ideCadastro} não encontrado após upsert`);
 
@@ -97,34 +91,80 @@ export class DespesasSyncService {
       ...idsParlamentar.values(),
     ]);
 
+    const { ignoradas, parlamentares } = analise;
     this.logger.log(
-      `Cota ${ano}: ${processadas} despesas de ${porDeputado.size} deputados ` +
+      `Cota ${ano}: ${processadas} despesas de ${parlamentares.size} deputados ` +
         `(${inseridas} novas, ${removidas} removidas, ${ignoradas} de lideranças ignoradas)`,
     );
     return {
       processados: processadas,
-      detalhes: { inseridas, removidas, ignoradas, deputados: porDeputado.size },
+      detalhes: { inseridas, removidas, ignoradas, deputados: parlamentares.size },
     };
   }
 
-  private async agrupar(csv: Uint8Array, ano: number) {
-    const porDeputado = new Map<string, DespesaCota[]>();
-    let ignoradas = 0;
+  /** Despesas de deputados do arquivo (as de lideranças partidárias são descartadas). */
+  private async *despesas(csv: Uint8Array): AsyncGenerator<DespesaCota> {
+    for await (const linha of lerLinhasCota(csv)) {
+      const despesa = mapearLinhaCota(linha);
+      if (despesa) yield despesa;
+    }
+  }
+
+  private async analisar(csv: Uint8Array, ano: number) {
+    const categorias = new Map<string, string>();
+    const fornecedores = new Map<string, FornecedorDaCota>();
+    const parlamentares = new Map<string, ParlamentarDaCota>();
     let total = 0;
+    let ignoradas = 0;
+    let agrupado = true;
+    let atual: string | null = null;
+
     for await (const linha of lerLinhasCota(csv)) {
       total++;
-      const despesa = mapearLinhaCota(linha);
-      if (!despesa) {
+      const d = mapearLinhaCota(linha);
+      if (!d) {
         ignoradas++;
         continue;
       }
-      if (despesa.ano !== ano) {
-        throw new Error(`Linha ${total} pertence a ${despesa.ano}, esperado ${ano}`);
+      if (d.ano !== ano) throw new Error(`Linha ${total} pertence a ${d.ano}, esperado ${ano}`);
+
+      if (d.ideCadastro !== atual) {
+        // Um deputado que reaparece depois de outro: o arquivo não está agrupado.
+        if (parlamentares.has(d.ideCadastro)) agrupado = false;
+        else parlamentares.set(d.ideCadastro, d.parlamentar);
+        atual = d.ideCadastro;
       }
-      const lista = porDeputado.get(despesa.ideCadastro);
-      if (lista) lista.push(despesa);
-      else porDeputado.set(despesa.ideCadastro, [despesa]);
+      categorias.set(d.categoria.slug, d.categoria.nome);
+      if (!fornecedores.has(d.fornecedor.chave)) {
+        const { documento, nome, nomeNormalizado } = d.fornecedor;
+        fornecedores.set(d.fornecedor.chave, { documento, nome, nomeNormalizado });
+      }
     }
-    return { porDeputado, ignoradas, total };
+    return { categorias, fornecedores, parlamentares, total, ignoradas, agrupado };
+  }
+
+  /** Deputado a deputado, na ordem do arquivo (requer linhas agrupadas por deputado). */
+  private async *blocosEmSequencia(csv: Uint8Array): AsyncGenerator<[string, DespesaCota[]]> {
+    let bloco: DespesaCota[] = [];
+    for await (const d of this.despesas(csv)) {
+      const anterior = bloco[0];
+      if (anterior && anterior.ideCadastro !== d.ideCadastro) {
+        yield [anterior.ideCadastro, bloco];
+        bloco = [];
+      }
+      bloco.push(d);
+    }
+    if (bloco[0]) yield [bloco[0].ideCadastro, bloco];
+  }
+
+  /** Alternativa para um arquivo fora de ordem: agrupa o ano inteiro em memória. */
+  private async *blocosEmMemoria(csv: Uint8Array): AsyncGenerator<[string, DespesaCota[]]> {
+    const porDeputado = new Map<string, DespesaCota[]>();
+    for await (const d of this.despesas(csv)) {
+      const lista = porDeputado.get(d.ideCadastro);
+      if (lista) lista.push(d);
+      else porDeputado.set(d.ideCadastro, [d]);
+    }
+    yield* porDeputado;
   }
 }

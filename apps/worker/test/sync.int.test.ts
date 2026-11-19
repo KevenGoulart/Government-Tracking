@@ -104,6 +104,22 @@ describe('DespesasSyncService (integração)', () => {
     expect(await prisma.despesa.count()).toBe(5);
   });
 
+  it('aceita um arquivo fora de ordem (deputado que reaparece depois de outro)', async () => {
+    // Ordem A, B, A: não dá para processar deputado a deputado em sequência
+    linhas = [
+      LINHAS_EXEMPLO.combustivel,
+      LINHAS_EXEMPLO.trechoComQuebraDeLinha,
+      LINHAS_EXEMPLO.ramalTelefonico,
+      LINHAS_EXEMPLO.passagemEmitida,
+      LINHAS_EXEMPLO.passagemCancelada,
+    ];
+
+    const resultado = await service.sincronizarAno(2025);
+
+    expect(resultado).toMatchObject({ processados: 5, detalhes: { inseridas: 5, deputados: 2 } });
+    expect(await prisma.despesa.count()).toBe(5);
+  });
+
   it('remove as despesas de um deputado que saiu do arquivo', async () => {
     await service.sincronizarAno(2025);
     linhas = linhas.filter((l) => l !== LINHAS_EXEMPLO.trechoComQuebraDeLinha);

@@ -5,7 +5,13 @@ import type { Casa } from '@raio-x/db';
 import type { DespesaComChave } from '../comum/despesa-normalizada';
 import { PrismaService } from '../prisma/prisma.service';
 
-const LOTE = 5_000;
+/**
+ * Tamanho dos lotes de `createMany`. O Prisma 7 guarda em cache o plano de cada consulta, e o
+ * plano de um `createMany` cresce com o número de linhas: lotes de 5.000 deixavam ~120 MB
+ * retidos e o worker passava de 1,4 GB numa sincronização. Lotes pequenos e de tamanho fixo
+ * limitam o tamanho e a quantidade de planos diferentes.
+ */
+const LOTE = 200;
 
 function emLotes<T>(itens: T[], tamanho = LOTE): T[][] {
   const lotes: T[][] = [];
@@ -120,10 +126,11 @@ export class DespesasRepository {
       const { count: removidas } = await tx.despesa.deleteMany({
         where: { parlamentarId, ano, idExterno: { notIn: chaves } },
       });
-      const { count: inseridas } = await tx.despesa.createMany({
-        data: despesas,
-        skipDuplicates: true,
-      });
+      let inseridas = 0;
+      for (const lote of emLotes(despesas)) {
+        const { count } = await tx.despesa.createMany({ data: lote, skipDuplicates: true });
+        inseridas += count;
+      }
       return { inseridas, removidas };
     });
   }

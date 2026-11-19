@@ -41,12 +41,26 @@ export function extrairCsvDoZip(zip: Uint8Array): Uint8Array {
   return csv;
 }
 
+const TAMANHO_PEDACO = 1 << 20;
+
+/**
+ * Entrega o arquivo em pedaços de 1 MB, sem copiar (`Buffer.from(buffer, offset, tamanho)`
+ * é uma visão sobre a mesma memória). Assim o arquivo pode ser lido mais de uma vez sem
+ * duplicar os ~75 MB descompactados.
+ */
+function* emPedacos(csv: Uint8Array): Generator<Buffer> {
+  for (let inicio = 0; inicio < csv.byteLength; inicio += TAMANHO_PEDACO) {
+    const tamanho = Math.min(TAMANHO_PEDACO, csv.byteLength - inicio);
+    yield Buffer.from(csv.buffer, csv.byteOffset + inicio, tamanho);
+  }
+}
+
 /**
  * Lê as linhas do CSV (UTF-8 com BOM, separador ";", campos entre aspas que podem conter
  * quebras de linha). Valida cada linha e informa o número do registro em caso de erro.
  */
 export async function* lerLinhasCota(csv: Uint8Array): AsyncGenerator<LinhaCota> {
-  const parser = Readable.from([Buffer.from(csv)]).pipe(
+  const parser = Readable.from(emPedacos(csv)).pipe(
     parse({
       delimiter: ';',
       bom: true,

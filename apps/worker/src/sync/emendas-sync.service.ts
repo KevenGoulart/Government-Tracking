@@ -8,7 +8,8 @@ import type { PortalTransparenciaClient } from '../transparencia/portal-transpar
 import { PORTAL_TRANSPARENCIA } from '../transparencia/transparencia.module';
 import { type ResultadoSync, SyncRunService } from './sync-run.service';
 
-const LOTE = 2_000;
+// Lotes pequenos: o Prisma guarda o plano de cada createMany (ver despesas.repository.ts)
+const LOTE = 200;
 const MAX_NOMES_DETALHE = 20;
 
 /**
