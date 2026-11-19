@@ -2,6 +2,7 @@ export * from './format';
 export * from './normalizers/categoria';
 export * from './normalizers/documento';
 export * from './normalizers/texto';
+export * from './schemas/agregados';
 export * from './schemas/common';
 export * from './schemas/despesa';
 export * from './schemas/pagination';
