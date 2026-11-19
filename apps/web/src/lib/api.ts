@@ -2,6 +2,11 @@ import 'server-only';
 import {
   type Categoria,
   categoriaSchema,
+  comparacaoSchema,
+  estatisticasSchema,
+  fornecedorDetalheSchema,
+  type RankingQuery,
+  rankingSchema,
   despesaSchema,
   type DespesasQuery,
   filtrosParlamentaresSchema,
@@ -41,18 +46,33 @@ export function montarQuery(params: Record<string, QueryValue>): string {
   return texto ? `?${texto}` : '';
 }
 
+/**
+ * Versão do código. O Next inclui os cabeçalhos na chave do cache de dados, então cada
+ * deploy usa entradas novas e nunca lê respostas gravadas no formato anterior.
+ */
+const VERSAO_APP = process.env.APP_VERSION || process.env.VERCEL_GIT_COMMIT_SHA || 'dev';
+
+async function buscar(path: string, init: RequestInit): Promise<unknown> {
+  const res = await fetch(`${API_URL}${path}`, {
+    ...init,
+    headers: { Accept: 'application/json', 'X-App-Version': VERSAO_APP },
+  });
+  if (!res.ok) throw new ApiError(res.status, path);
+  return res.json();
+}
+
 async function apiGet<T extends z.ZodType>(
   path: string,
   schema: T,
   revalidate: number,
 ): Promise<z.infer<T>> {
-  const res = await fetch(`${API_URL}${path}`, {
-    headers: { Accept: 'application/json' },
-    next: { revalidate },
-  });
-  if (!res.ok) throw new ApiError(res.status, path);
   // Valida o contrato: uma mudança na API quebra aqui, com erro claro, e não na renderização.
-  return schema.parse(await res.json());
+  const resultado = schema.safeParse(await buscar(path, { next: { revalidate } }));
+  if (resultado.success) return resultado.data;
+
+  // A resposta pode ter vindo do cache em um formato antigo (ex.: em desenvolvimento,
+  // após mudar a API). Busca direto na fonte antes de considerar erro de contrato.
+  return schema.parse(await buscar(path, { cache: 'no-store' }));
 }
 
 /** Os dados mudam no máximo uma vez por dia (sincronização diária). */
@@ -93,4 +113,20 @@ export const api = {
     ),
 
   syncStatus: () => apiGet('/meta/sync', syncStatusSchema, CINCO_MINUTOS),
+
+  estatisticas: (ano?: number) =>
+    apiGet(`/estatisticas${montarQuery({ ano })}`, estatisticasSchema, UMA_HORA),
+
+  ranking: (query: Partial<RankingQuery>) =>
+    apiGet(`/rankings${montarQuery(query)}`, rankingSchema, UMA_HORA),
+
+  fornecedor: (identificador: string, ano?: number) =>
+    apiGet(
+      `/fornecedores/${encodeURIComponent(identificador)}${montarQuery({ ano })}`,
+      fornecedorDetalheSchema,
+      UMA_HORA,
+    ),
+
+  comparacao: (ids: string[], ano?: number) =>
+    apiGet(`/comparacao${montarQuery({ ids: ids.join(','), ano })}`, comparacaoSchema, UMA_HORA),
 };

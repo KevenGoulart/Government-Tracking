@@ -20,6 +20,14 @@ export function completarMeses(
   }));
 }
 
+/**
+ * No ano corrente, os meses recentes parecem "cair" porque os reembolsos são lançados
+ * com atraso. Sem esse aviso o gráfico sugeriria uma redução de gastos que não houve.
+ */
+export function AvisoAnoEmAndamento() {
+  return <>Ano em andamento: os meses mais recentes ainda recebem lançamentos.</>;
+}
+
 export function GastosMensais({ gastos, ano }: { gastos: GastoMensal[]; ano: number }) {
   const dados = completarMeses(gastos, ano);
   return (
@@ -44,6 +52,12 @@ export function GastosMensais({ gastos, ano }: { gastos: GastoMensal[]; ano: num
       </table>
       <figcaption className="text-muted-foreground text-xs">
         Valor líquido por mês de competência (mês em que a despesa foi lançada na cota).
+        {ano === new Date().getFullYear() && (
+          <>
+            {' '}
+            <AvisoAnoEmAndamento />
+          </>
+        )}
       </figcaption>
     </figure>
   );

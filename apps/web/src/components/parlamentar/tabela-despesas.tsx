@@ -19,6 +19,7 @@ import {
   nomeMes,
   nomeMesCurto,
 } from '@/lib/format';
+import { hrefFornecedor } from '@/lib/links';
 import { CampoSelect } from '../campo-select';
 
 interface FiltrosDespesasProps {
@@ -104,7 +105,18 @@ export function TabelaDespesas({ despesas, total }: { despesas: Despesa[]; total
                 {formatarMoeda(d.valorLiquido)}
               </span>
             </div>
-            <p className="text-muted-foreground break-words">{d.fornecedor?.nome ?? '—'}</p>
+            <p className="text-muted-foreground break-words">
+              {d.fornecedor ? (
+                <Link
+                  href={hrefFornecedor(d.fornecedor)}
+                  className="underline-offset-4 hover:underline"
+                >
+                  {d.fornecedor.nome}
+                </Link>
+              ) : (
+                '—'
+              )}
+            </p>
             <div className="text-muted-foreground flex items-center justify-between gap-3 text-xs">
               <span className="tabular-nums">
                 {formatarData(d.dataDocumento)} · competência {nomeMesCurto(d.mes)}/{d.ano}
@@ -152,9 +164,17 @@ export function TabelaDespesas({ despesas, total }: { despesas: Despesa[]; total
                   {caixaDeFrase(d.categoria.nome)}
                 </TableCell>
                 <TableCell className="max-w-64">
-                  <span className="block truncate" title={d.fornecedor?.nome}>
-                    {d.fornecedor?.nome ?? '—'}
-                  </span>
+                  {d.fornecedor ? (
+                    <Link
+                      href={hrefFornecedor(d.fornecedor)}
+                      className="block truncate underline-offset-4 hover:underline"
+                      title={d.fornecedor.nome}
+                    >
+                      {d.fornecedor.nome}
+                    </Link>
+                  ) : (
+                    '—'
+                  )}
                   {d.fornecedor?.documento && (
                     <span className="text-muted-foreground text-xs tabular-nums">
                       {formatarDocumento(d.fornecedor.documento)}

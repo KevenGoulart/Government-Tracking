@@ -1,8 +1,10 @@
 import { despesasQuerySchema, parlamentarDetalheQuerySchema } from '@raio-x/shared';
 import { ExternalLink } from 'lucide-react';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { FotoParlamentar } from '@/components/foto-parlamentar';
+import { Indicador } from '@/components/indicador';
 import { Paginacao } from '@/components/paginacao';
 import { GastosMensais } from '@/components/parlamentar/gastos-mensais';
 import { GastosPorCategoria } from '@/components/parlamentar/gastos-por-categoria';
@@ -26,17 +28,6 @@ const ORDENACOES = {
   'valor-desc': { ordenarPor: 'valor', ordem: 'desc' },
   'valor-asc': { ordenarPor: 'valor', ordem: 'asc' },
 } as const;
-
-function Indicador({ rotulo, valor }: { rotulo: string; valor: string }) {
-  return (
-    <Card>
-      <CardHeader>
-        <p className="text-muted-foreground text-sm">{rotulo}</p>
-        <p className="text-3xl font-semibold tracking-tight">{valor}</p>
-      </CardHeader>
-    </Card>
-  );
-}
 
 async function carregarParlamentar(id: string, ano?: number) {
   try {
@@ -113,15 +104,23 @@ export default async function ParlamentarPage({ params, searchParams }: Props) {
             {[parlamentar.partido, parlamentar.uf].filter(Boolean).join(' · ')}
             {parlamentar.nomeCivil && <> · Nome civil: {parlamentar.nomeCivil}</>}
           </p>
-          <a
-            href={`https://www.camara.leg.br/deputados/${parlamentar.idExterno}`}
-            target="_blank"
-            rel="noreferrer"
-            className="text-primary inline-flex items-center gap-1 text-sm underline-offset-4 hover:underline"
-          >
-            Perfil na Câmara dos Deputados <ExternalLink className="size-3.5" aria-hidden />
-            <span className="sr-only">(abre em nova aba)</span>
-          </a>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <Link
+              href={`/comparar?ids=${parlamentar.id}`}
+              className="text-primary text-sm underline-offset-4 hover:underline"
+            >
+              Comparar com outros parlamentares
+            </Link>
+            <a
+              href={`https://www.camara.leg.br/deputados/${parlamentar.idExterno}`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-primary inline-flex items-center gap-1 text-sm underline-offset-4 hover:underline"
+            >
+              Perfil na Câmara dos Deputados <ExternalLink className="size-3.5" aria-hidden />
+              <span className="sr-only">(abre em nova aba)</span>
+            </a>
+          </div>
         </div>
       </header>
 
