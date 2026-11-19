@@ -4,7 +4,14 @@ Plataforma web para explorar os gastos públicos de parlamentares brasileiros a 
 
 > Apresentação neutra: o projeto mostra números e a fonte oficial, sem conclusões editoriais.
 
-**Status:** Fases 1 a 4 concluídas (Câmara, Senado, emendas, rankings, fornecedores, comparação, cache e pontos de atenção) · próxima: Fase 5 (deploy).
+![Percurso pelo app: home, busca, página do parlamentar e ranking](docs/img/tour.gif)
+
+| Página do parlamentar                              | Pontos de atenção (tema escuro)                                     | Celular                                      |
+| -------------------------------------------------- | ------------------------------------------------------------------- | -------------------------------------------- |
+| ![Página do parlamentar](docs/img/parlamentar.png) | ![Pontos de atenção no tema escuro](docs/img/pontos-de-atencao.png) | ![Versão para celular](docs/img/celular.png) |
+
+Mais capturas: [home](docs/img/home.png) · [ranking](docs/img/ranking.png). As imagens são
+geradas com dados reais por `pnpm --filter @raio-x/web capturas -- <id>`.
 
 ## Arquitetura
 
@@ -38,6 +45,10 @@ flowchart LR
   API <--> RD
   WEB -- HTTP --> API
 ```
+
+Em produção, o front fica na **Vercel** e API, worker, Postgres e Redis no **Render**, descritos
+em um Blueprint versionado ([`render.yaml`](render.yaml)). Passo a passo em
+[docs/deploy.md](docs/deploy.md).
 
 O front-end **nunca** chama as APIs do governo diretamente: tudo passa por ingestão → Postgres → API própria. Assim os dados ficam normalizados, as consultas agregadas são rápidas e a disponibilidade não depende das fontes externas.
 
@@ -114,17 +125,18 @@ pnpm dev
 
 ## Scripts
 
-| Comando             | O que faz                                                                          |
-| ------------------- | ---------------------------------------------------------------------------------- |
-| `pnpm dev`          | Sobe todos os apps em modo desenvolvimento                                         |
-| `pnpm build`        | Build de todos os pacotes e apps                                                   |
-| `pnpm lint`         | ESLint em todo o monorepo                                                          |
-| `pnpm typecheck`    | Checagem de tipos                                                                  |
-| `pnpm test`         | Testes unitários (Vitest)                                                          |
-| `pnpm test:e2e`     | e2e da API (Supertest), integração do worker (Postgres) e front (Playwright + axe) |
-| `pnpm sync:initial` | Carga inicial: Câmara, Senado e emendas                                            |
-| `pnpm db:migrate`   | Cria/aplica migrations em desenvolvimento                                          |
-| `pnpm format`       | Formata o código com Prettier                                                      |
+| Comando                                      | O que faz                                                                          |
+| -------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `pnpm dev`                                   | Sobe todos os apps em modo desenvolvimento                                         |
+| `pnpm build`                                 | Build de todos os pacotes e apps                                                   |
+| `pnpm lint`                                  | ESLint em todo o monorepo                                                          |
+| `pnpm typecheck`                             | Checagem de tipos                                                                  |
+| `pnpm test`                                  | Testes unitários (Vitest)                                                          |
+| `pnpm test:e2e`                              | e2e da API (Supertest), integração do worker (Postgres) e front (Playwright + axe) |
+| `pnpm sync:initial`                          | Carga inicial: Câmara, Senado e emendas                                            |
+| `pnpm db:migrate`                            | Cria/aplica migrations em desenvolvimento                                          |
+| `pnpm format`                                | Formata o código com Prettier                                                      |
+| `pnpm --filter @raio-x/web capturas -- <id>` | Gera as imagens do README (docs/img) com o app rodando                             |
 
 ## Pontos de atenção
 
@@ -138,6 +150,21 @@ regra explicada:
 
 Os limiares foram calibrados com os dados reais; o porquê de cada um está em
 [docs/decisoes.md](docs/decisoes.md#pontos-de-atenção-fase-4).
+
+## Deploy
+
+| Parte                         | Onde               | Arquivo                                       |
+| ----------------------------- | ------------------ | --------------------------------------------- |
+| Front-end                     | Vercel             | `apps/web/vercel.json`                        |
+| API, worker, Postgres e Redis | Render (Blueprint) | `render.yaml`, `apps/{api,worker}/Dockerfile` |
+
+- As migrations rodam no `preDeployCommand` da API, antes de a versão nova receber tráfego.
+- Com o banco vazio, o worker enfileira a carga inicial sozinho: o primeiro deploy não exige
+  acesso a um shell.
+- O worker roda em 512 MB: a sincronização da Câmara caiu de 1,4 GB para ~420 MB de pico
+  (streaming por deputado e lotes pequenos no Prisma; detalhes em
+  [docs/decisoes.md](docs/decisoes.md#memória-do-worker)).
+- O CI constrói as duas imagens Docker a cada push.
 
 ## Decisões técnicas
 
@@ -164,7 +191,7 @@ As decisões não óbvias estão registradas, com o motivo de cada uma, em [docs
 | [Cota Parlamentar — arquivos anuais](https://www2.camara.leg.br/transparencia/cota-para-exercicio-da-atividade-parlamentar/dados-abertos-cota-parlamentar) | Despesas (CEAP)           | 1    |
 | [Dados Abertos do Senado](https://legis.senado.leg.br/dadosabertos) e CSV anual da CEAPS                                                                   | Senadores e despesas      | 3    |
 | [Portal da Transparência (CGU)](https://api.portaldatransparencia.gov.br) (chave gratuita)                                                                 | Emendas parlamentares     | 3    |
-| Dados Abertos do TSE                                                                                                                                       | Bens e contas de campanha | 4+   |
+| Dados Abertos do TSE                                                                                                                                       | Bens e contas de campanha | —    |
 
 ## Roadmap
 
@@ -173,4 +200,7 @@ As decisões não óbvias estão registradas, com o motivo de cada uma, em [docs
 - [x] **Fase 2**: rankings, fornecedores, comparação, estatísticas, cache
 - [x] **Fase 3**: Senado e emendas parlamentares
 - [x] **Fase 4**: pontos de atenção (detecção simples de valores fora do padrão)
-- [ ] **Fase 5**: deploy e README final
+- [x] **Fase 5**: deploy (Dockerfiles, Blueprint do Render, Vercel), worker em 512 MB e README final
+
+Próximos passos possíveis: bens declarados e contas de campanha (TSE), que ficaram fora do
+escopo das fases.

@@ -247,6 +247,53 @@ canônico: documento quando existe, id caso contrário.
 
 ## Memória do worker
 
-Processar um ano inteiro mantém o CSV descompactado (~75 MB) e as despesas mapeadas em
-memória: pico de ~700 MB de RSS. É aceitável localmente; no deploy (Fase 5) pode ser
-preciso processar o arquivo em streaming, agrupando por deputado.
+Medido na sincronização da cota da Câmara de 2025 (208 mil linhas, CSV de 75 MB descompactado):
+
+| Versão                                         | Pico de RSS | Heap necessário |
+| ---------------------------------------------- | ----------- | --------------- |
+| Fase 1: ano inteiro em memória, lotes de 5.000 | 1,4 GB      | mais de 320 MB  |
+| Fase 5: streaming por deputado, lotes de 200   | ~420 MB     | cabe em 192 MB  |
+
+Duas causas, encontradas medindo cada etapa:
+
+1. **Todas as despesas do ano em memória** antes de gravar (~200 MB de heap). Agora são duas
+   passadas sobre o CSV: a primeira valida o arquivo e coleta categorias, fornecedores e
+   deputados (~20 MB); a segunda grava um deputado por vez. O arquivo oficial vem agrupado
+   por deputado (563 blocos para 563 deputados em 2025; 566/566 em 2026). Se um dia vier fora
+   de ordem, a primeira passada detecta e o worker volta a agrupar em memória, com um aviso:
+   processar em sequência um arquivo desordenado apagaria despesas válidas. Nada é gravado
+   antes de o arquivo inteiro ser validado. O CSV é lido em pedaços de 1 MB que apontam para o
+   mesmo buffer, sem as cópias de 75 MB de antes.
+2. **O Prisma 7 guarda em cache o plano de cada consulta**, e o plano de um `createMany`
+   cresce com o número de linhas. Depois de inserir os fornecedores em lotes de 5.000, ~120 MB
+   ficavam retidos mesmo após o GC. Com lotes de 200, de tamanho fixo, o tamanho e a quantidade
+   de planos diferentes ficam limitados. O custo é tempo: a sincronização (sem mudanças a gravar)
+   foi de 1min39 para 2min17, com o heap limitado a 192 MB.
+
+A imagem do worker define `--max-old-space-size=256`. Sem limite, o V8 adia a coleta e o RSS
+sobe à toa; com ele, o worker roda numa instância de 512 MB (testado num container com
+`--memory=512m`, fazendo a carga inicial do zero).
+
+## Deploy
+
+Passo a passo em [deploy.md](deploy.md). Decisões:
+
+- **Render para API, worker, Postgres e Redis, num Blueprint (`render.yaml`)**: toda a infra do
+  back-end versionada num arquivo, com banco e Redis ligados aos serviços por referência (sem
+  copiar URLs). Railway e Fly exigiriam um arquivo por serviço e criar banco e Redis à mão.
+- **Vercel para o front**, como no plano. O front só chama a API pelo servidor, então não há
+  CORS a configurar para ele.
+- **Migrations no `preDeployCommand` da API**: rodam uma vez por deploy, antes de a versão nova
+  receber tráfego; se falharem, a anterior continua no ar. O Prisma CLI virou dependência de
+  produção do pacote db: ele já vinha na imagem como peer dependency do `@prisma/client`, e
+  uma etapa separada só para as migrations somava 256 MB à imagem.
+- **Carga inicial automática**: com o banco vazio, o worker enfileira a carga dos anos em
+  `SYNC_INITIAL_YEARS` (ids de job fixos evitam duplicar se reiniciar). Assim o primeiro
+  deploy não depende de acesso a um shell no servidor, que no Render é pago.
+- **Imagens a partir do monorepo recortado** (`turbo prune`): o `pnpm deploy` padrão exige
+  `inject-workspace-packages`, que mudaria o fluxo de desenvolvimento, e o modo legado deixa
+  links para fora da imagem. A imagem reinstala só as dependências de produção sobre a árvore
+  recortada, onde os links do pnpm são relativos. Tamanho: ~720 MB cada, a maior parte do
+  Prisma (CLI e Studio vêm juntos como peer dependency).
+- **`PORT` e commit da plataforma**: a API aceita `PORT` e usa `RENDER_GIT_COMMIT` como versão
+  do código quando `API_PORT`/`APP_VERSION` não estão definidas.

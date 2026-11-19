@@ -6,6 +6,13 @@
     },
     "types": ["node", "vitest/globals", "@testing-library/jest-dom/vitest"]
   },
-  "include": ["next-env.d.ts", "src", ".next/types/**/*.ts", ".next/dev/types/**/*.ts", "e2e"],
+  "include": [
+    "next-env.d.ts",
+    "src",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "e2e",
+    "scripts"
+  ],
   "exclude": ["node_modules"]
 }
