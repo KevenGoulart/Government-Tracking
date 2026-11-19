@@ -69,6 +69,16 @@ export class SenadoresSyncService {
       });
     }
 
+    // Quem não exerceu mandato na legislatura e não tem despesas não deve aparecer como
+    // senador (ex.: suplente que nunca assumiu, muitas vezes deputado federal).
+    const { count: removidos } = await this.prisma.parlamentar.deleteMany({
+      where: {
+        casa: 'SENADO',
+        idExterno: { notIn: [...porCodigo.keys()] },
+        despesas: { none: {} },
+      },
+    });
+
     const { count: inativados } = await this.prisma.parlamentar.updateMany({
       where: { casa: 'SENADO', emExercicio: true, idExterno: { notIn: [...ativos.keys()] } },
       data: { emExercicio: false },
@@ -79,7 +89,7 @@ export class SenadoresSyncService {
     );
     return {
       processados: porCodigo.size,
-      detalhes: { emExercicio: ativos.size, detalhesBuscados, inativados },
+      detalhes: { emExercicio: ativos.size, detalhesBuscados, inativados, removidos },
     };
   }
 }

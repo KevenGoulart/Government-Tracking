@@ -105,6 +105,38 @@ describe('SenadoresSyncService (integração)', () => {
   });
 });
 
+describe('SenadoresSyncService (limpeza)', () => {
+  it('remove quem deixou de constar como senador, exceto se tiver despesas', async () => {
+    await sincronizarSenadores([ALAN, WEVERTON, FC1]);
+    const fc1 = await prisma.parlamentar.findFirstOrThrow({ where: { idExterno: '5980' } });
+    const categoria = await prisma.categoria.create({
+      data: { slug: 'x', nome: 'X', casa: 'SENADO' },
+    });
+    await prisma.despesa.create({
+      data: {
+        idExterno: 'senado:2025:1',
+        parlamentarId: fc1.id,
+        categoriaId: categoria.id,
+        ano: 2025,
+        mes: 1,
+        valorDocumento: '1',
+        valorLiquido: '1',
+      },
+    });
+
+    // Weverton e FC1 não aparecem mais (ex.: suplentes que nunca exerceram)
+    const resultado = await sincronizarSenadores([ALAN], [ALAN]);
+
+    expect(resultado.detalhes).toMatchObject({ removidos: 1 });
+    const restantes = await prisma.parlamentar.findMany({
+      where: { casa: 'SENADO' },
+      select: { idExterno: true },
+      orderBy: { idExterno: 'asc' },
+    });
+    expect(restantes.map((p) => p.idExterno)).toEqual(['5672', '5980']);
+  });
+});
+
 describe('SenadoDespesasSyncService (integração)', () => {
   let linhas: string[];
   const http = {

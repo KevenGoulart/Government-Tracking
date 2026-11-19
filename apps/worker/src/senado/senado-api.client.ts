@@ -21,7 +21,42 @@ const identificacaoSchema = z.object({
   UfParlamentar: z.string().optional(),
 });
 
-const mandatoSchema = z.object({ UfParlamentar: z.string().optional() });
+const legislaturaDoMandatoSchema = z.object({
+  NumeroLegislatura: z.string(),
+  DataInicio: z.string(),
+  DataFim: z.string(),
+});
+
+const mandatoSchema = z.object({
+  UfParlamentar: z.string().optional(),
+  PrimeiraLegislaturaDoMandato: legislaturaDoMandatoSchema.optional(),
+  SegundaLegislaturaDoMandato: legislaturaDoMandatoSchema.optional(),
+  /** Períodos em que o mandato foi de fato exercido (suplentes que nunca assumiram não têm). */
+  Exercicios: z
+    .object({
+      Exercicio: lista(z.object({ DataInicio: z.string(), DataFim: z.string().optional() })),
+    })
+    .optional(),
+});
+type Mandato = z.infer<typeof mandatoSchema>;
+
+/**
+ * Exerceu o mandato durante a legislatura? A lista da legislatura inclui suplentes que nunca
+ * assumiram, e vários deles são deputados federais: importá-los criaria a mesma pessoa
+ * duas vezes, uma em cada casa.
+ */
+export function exerceuNaLegislatura(mandatos: Mandato[], legislatura: number): boolean {
+  return mandatos.some((m) => {
+    const leg = [m.PrimeiraLegislaturaDoMandato, m.SegundaLegislaturaDoMandato].find(
+      (l) => l?.NumeroLegislatura === String(legislatura),
+    );
+    if (!leg) return false;
+    return (m.Exercicios?.Exercicio ?? []).some(
+      (e) =>
+        e.DataInicio <= leg.DataFim && (e.DataFim === undefined || e.DataFim >= leg.DataInicio),
+    );
+  });
+}
 
 const legislaturaSchema = z.object({
   ListaParlamentarLegislatura: z.object({
@@ -88,15 +123,18 @@ export class SenadoApiClient {
     private readonly baseUrl: string,
   ) {}
 
-  /** Todos os que tiveram mandato na legislatura (titulares e suplentes). Não traz partido. */
+  /**
+   * Senadores que exerceram mandato na legislatura (titulares e suplentes que assumiram).
+   * Não traz partido.
+   */
   async listarDaLegislatura(legislatura: number): Promise<Senador[]> {
     const res = await this.http.getJson(
       `${this.baseUrl}/senador/lista/legislatura/${legislatura}`,
       legislaturaSchema,
     );
-    return res.ListaParlamentarLegislatura.Parlamentares.Parlamentar.map((p) =>
-      paraSenador(p.IdentificacaoParlamentar, p.Mandatos?.Mandato[0]?.UfParlamentar),
-    );
+    return res.ListaParlamentarLegislatura.Parlamentares.Parlamentar.filter((p) =>
+      exerceuNaLegislatura(p.Mandatos?.Mandato ?? [], legislatura),
+    ).map((p) => paraSenador(p.IdentificacaoParlamentar, p.Mandatos?.Mandato[0]?.UfParlamentar));
   }
 
   async listarEmExercicio(): Promise<Senador[]> {
