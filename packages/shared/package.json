@@ -1,0 +1,36 @@
+{
+  "name": "@raio-x/shared",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Schemas Zod, tipos e utilitários compartilhados entre front-end e back-end.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@raio-x/eslint-config": "workspace:*",
+    "@raio-x/tsconfig": "workspace:*",
+    "@types/node": "^24.19.2",
+    "@vitest/coverage-v8": "^5.1.1",
+    "eslint": "^10.15.0",
+    "typescript": "~6.0.3",
+    "vitest": "^5.1.1"
+  }
+}
