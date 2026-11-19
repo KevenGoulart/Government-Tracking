@@ -38,6 +38,7 @@ model Parlamentar {
   email       String?
   emExercicio Boolean   @default(true)
   despesas    Despesa[]
+  emendas     Emenda[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -64,10 +65,45 @@ model Fornecedor {
 model Categoria {
   id        String    @id @default(cuid())
   /// Identificador estável derivado do nome oficial, ex.: "manutencao-de-escritorio-de-apoio-a-atividade-parlamentar".
+  /// Categorias do Senado usam o prefixo "senado-": as cotas das duas casas são diferentes.
   slug      String    @unique
   nome      String
+  casa      Casa      @default(CAMARA)
   despesas  Despesa[]
   createdAt DateTime  @default(now())
+
+  @@index([casa])
+}
+
+/// Emenda parlamentar ao orçamento (Portal da Transparência). Os valores são acumulados
+/// e mudam com o tempo; o ano é substituído inteiro a cada sincronização.
+model Emenda {
+  id                  String       @id @default(cuid())
+  /// Código da emenda na fonte (único).
+  codigo              String       @unique
+  ano                 Int
+  numero              String?
+  tipo                String
+  /// Autor como veio da fonte (pode ser uma bancada estadual).
+  autor               String
+  /// Vínculo pelo nome do autor; nulo para bancadas, comissões e nomes sem correspondência única.
+  parlamentarId       String?
+  parlamentar         Parlamentar? @relation(fields: [parlamentarId], references: [id], onDelete: SetNull)
+  /// Texto que acompanha o autor, ex.: "EX-PARLAMENTAR X, NOS TERMOS ART. 78 LDO 2025".
+  observacaoAutor     String?
+  localidade          String?
+  funcao              String?
+  subfuncao           String?
+  valorEmpenhado      Decimal      @db.Decimal(15, 2)
+  valorLiquidado      Decimal      @db.Decimal(15, 2)
+  valorPago           Decimal      @db.Decimal(15, 2)
+  valorRestoInscrito  Decimal      @default(0) @db.Decimal(15, 2)
+  valorRestoCancelado Decimal      @default(0) @db.Decimal(15, 2)
+  valorRestoPago      Decimal      @default(0) @db.Decimal(15, 2)
+  createdAt           DateTime     @default(now())
+
+  @@index([parlamentarId, ano])
+  @@index([ano])
 }
 
 model Despesa {

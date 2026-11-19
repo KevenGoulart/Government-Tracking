@@ -46,6 +46,6 @@ export async function prepareTestDatabase(baseUrl: string): Promise<string> {
 /** Limpa todas as tabelas de dados (mantém o histórico de migrations). */
 export async function truncateAll(prisma: PrismaClient): Promise<void> {
   await prisma.$executeRawUnsafe(
-    'TRUNCATE TABLE "Despesa", "Fornecedor", "Categoria", "Parlamentar", "SyncRun" RESTART IDENTITY CASCADE',
+    'TRUNCATE TABLE "Despesa", "Emenda", "Fornecedor", "Categoria", "Parlamentar", "SyncRun" RESTART IDENTITY CASCADE',
   );
 }
