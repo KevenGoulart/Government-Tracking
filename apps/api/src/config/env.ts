@@ -18,7 +18,13 @@ export type Env = z.infer<typeof envSchema>;
 
 /** Valida as variáveis de ambiente na inicialização: falha cedo e com mensagem clara. */
 export function parseEnv(source: NodeJS.ProcessEnv = process.env): Env {
-  const result = envSchema.safeParse(source);
+  const result = envSchema.safeParse({
+    // Plataformas de deploy informam a porta em PORT e o commit em variáveis próprias;
+    // os nomes do projeto, quando definidos, têm prioridade.
+    API_PORT: source.PORT,
+    APP_VERSION: source.RENDER_GIT_COMMIT,
+    ...source,
+  });
   if (!result.success) {
     throw new Error(`Variáveis de ambiente inválidas:\n${z.prettifyError(result.error)}`);
   }

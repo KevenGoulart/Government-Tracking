@@ -1,0 +1,18 @@
+# Contexto de build das imagens (raiz do monorepo): só o código-fonte entra.
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/coverage
+**/test-results
+**/playwright-report
+**/blob-report
+**/*.tsbuildinfo
+packages/db/src/generated
+.git
+.github
+.husky
+.env
+.env.*
+!.env.example
+docs

@@ -33,16 +33,16 @@
   "dependencies": {
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
-    "pg": "^8.23.1"
+    "dotenv": "^18.0.10",
+    "pg": "^8.23.1",
+    "prisma": "7.10.1"
   },
   "devDependencies": {
     "@raio-x/eslint-config": "workspace:*",
     "@raio-x/tsconfig": "workspace:*",
     "@types/node": "^24.19.2",
     "@types/pg": "^8.23.1",
-    "dotenv": "^18.0.10",
     "eslint": "^10.15.0",
-    "prisma": "7.10.1",
     "typescript": "~6.0.3"
   }
 }

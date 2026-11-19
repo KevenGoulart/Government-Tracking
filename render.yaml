@@ -1,0 +1,90 @@
+# Blueprint do Render: API, worker, Postgres e Redis (Key Value) num só arquivo.
+# Uso: Render → New → Blueprint → selecionar este repositório. O front-end fica na Vercel.
+# Detalhes, custos e passo a passo: docs/deploy.md
+
+services:
+  - type: web
+    name: raio-x-api
+    runtime: docker
+    plan: starter
+    region: virginia
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    # Aplica as migrations antes de cada versão nova entrar no ar
+    preDeployCommand: sh -c "cd /app/packages/db && node_modules/.bin/prisma migrate deploy"
+    # Só reconstrói quando algo que a API usa muda
+    buildFilter:
+      paths:
+        - apps/api/**
+        - packages/db/**
+        - packages/shared/**
+        - packages/tsconfig/**
+        - pnpm-lock.yaml
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: raio-x-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: raio-x-redis
+          property: connectionString
+      # Só o Swagger é usado pelo navegador; o front chama a API pelo servidor
+      - key: CORS_ORIGIN
+        sync: false
+
+  - type: worker
+    name: raio-x-worker
+    runtime: docker
+    # 512 MB: a imagem limita o heap a 256 MB (pico medido de ~420 MB de RSS)
+    plan: starter
+    region: virginia
+    dockerfilePath: ./apps/worker/Dockerfile
+    dockerContext: .
+    buildFilter:
+      paths:
+        - apps/worker/**
+        - packages/db/**
+        - packages/shared/**
+        - packages/tsconfig/**
+        - pnpm-lock.yaml
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: raio-x-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: raio-x-redis
+          property: connectionString
+      # Com o banco vazio, o worker enfileira sozinho a carga inicial destes anos
+      - key: SYNC_INITIAL_YEARS
+        value: '2025,2026'
+      # Opcional: sem a chave, as emendas ficam desabilitadas e o resto funciona
+      - key: TRANSPARENCIA_API_KEY
+        sync: false
+
+  - type: keyvalue
+    name: raio-x-redis
+    plan: starter
+    region: virginia
+    # O BullMQ exige que o Redis nunca descarte chaves
+    maxmemoryPolicy: noeviction
+    # Acessível só pela rede interna do Render
+    ipAllowList: []
+
+databases:
+  - name: raio-x-db
+    plan: basic-256mb
+    region: virginia
+    postgresMajorVersion: '17'
+    databaseName: raiox
+    user: raiox
+    ipAllowList: []
