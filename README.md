@@ -1,18 +1,21 @@
 # Raio-X Público
 
-Plataforma web para explorar os gastos públicos de parlamentares brasileiros a partir de **dados abertos oficiais**. Pesquise um deputado federal, veja como ele usa a Cota para o Exercício da Atividade Parlamentar (CEAP), compare com outros parlamentares e descubra quais fornecedores receberam dinheiro público.
+Plataforma web para explorar os gastos públicos de parlamentares brasileiros a partir de **dados abertos oficiais**. Pesquise um deputado federal ou senador, veja como usa a cota parlamentar (CEAP na Câmara, CEAPS no Senado), quais emendas ao orçamento apresentou, compare com outros parlamentares e descubra quais fornecedores receberam dinheiro público.
 
 > Apresentação neutra: o projeto mostra números e a fonte oficial, sem conclusões editoriais.
 
-**Status:** Fases 1 e 2 concluídas (MVP da Câmara, rankings, fornecedores, comparação e cache) · próxima: Fase 3 (Senado e emendas parlamentares).
+**Status:** Fases 1 a 3 concluídas (Câmara, Senado, emendas, rankings, fornecedores, comparação e cache) · próxima: Fase 4 (pontos de atenção).
 
 ## Arquitetura
 
 ```mermaid
 flowchart LR
   subgraph Fontes oficiais
-    CAM[API Dados Abertos<br/>deputados]
-    COTA[Arquivo anual da Cota<br/>despesas CSV]
+    CAM[API Câmara<br/>deputados]
+    COTA[Cota da Câmara<br/>CSV anual]
+    SEN[API Senado<br/>senadores]
+    CEAPS[CEAPS do Senado<br/>CSV anual]
+    PT[Portal da Transparência<br/>emendas]
   end
 
   subgraph Backend
@@ -26,6 +29,9 @@ flowchart LR
 
   CAM -- semanal --> WK
   COTA -- diária --> WK
+  SEN -- semanal --> WK
+  CEAPS -- diária --> WK
+  PT -- semanal --> WK
   WK <--> RD
   WK -- upsert idempotente --> PG
   API --> PG
@@ -49,31 +55,33 @@ O front-end **nunca** chama as APIs do governo diretamente: tudo passa por inges
 
 ## Funcionalidades
 
-| Página                      | O que mostra                                                                                         |
-| --------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `/`                         | Totais do ano, gastos por categoria, maiores totais e gastos por estado (total e média por deputado) |
-| `/parlamentares`            | Busca por nome (tolera erros de digitação), partido e UF                                             |
-| `/parlamentares/[id]`       | Evolução mensal, categorias, maiores fornecedores e despesas com link para a nota fiscal             |
-| `/ranking`                  | Total por deputado no ano, com filtros de categoria, partido e UF                                    |
-| `/fornecedores/[documento]` | Quanto o fornecedor recebeu e de quais deputados                                                     |
-| `/comparar`                 | 2 a 4 deputados lado a lado: totais, evolução mensal e categorias                                    |
+| Página                      | O que mostra                                                                                                                |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `/`                         | Totais do ano por casa (Câmara ou Senado): categorias, maiores totais e gastos por estado (total e média por parlamentar)   |
+| `/parlamentares`            | Busca por nome (tolera erros de digitação), casa, partido e UF                                                              |
+| `/parlamentares/[id]`       | Evolução mensal, categorias, maiores fornecedores, despesas (com link para a nota fiscal, quando a fonte publica) e emendas |
+| `/ranking`                  | Total por parlamentar no ano, por casa, com filtros de categoria, partido e UF                                              |
+| `/fornecedores/[documento]` | Quanto o fornecedor recebeu e de quais parlamentares                                                                        |
+| `/comparar`                 | 2 a 4 parlamentares da mesma casa lado a lado: totais, evolução mensal e categorias                                         |
 
 Todas as páginas mostram a fonte oficial e a data da última sincronização, funcionam em
 tema claro e escuro, no celular, e são verificadas com axe-core nos testes e2e.
 
 ### API
 
-| Endpoint                                | Descrição                                           |
-| --------------------------------------- | --------------------------------------------------- |
-| `GET /parlamentares`                    | Lista com busca e filtros, paginada                 |
-| `GET /parlamentares/:id`                | Dados e resumo de gastos                            |
-| `GET /parlamentares/:id/despesas`       | Despesas com filtros de ano, mês e categoria        |
-| `GET /parlamentares/:id/gastos-mensais` | Série mensal                                        |
-| `GET /rankings`                         | Total por parlamentar (ano, categoria, partido, UF) |
-| `GET /estatisticas`                     | Totais gerais, por categoria e por estado           |
-| `GET /fornecedores/:documento`          | Fornecedor e parlamentares que o pagaram            |
-| `GET /comparacao?ids=a,b`               | Comparação de 2 a 4 parlamentares                   |
-| `GET /meta/sync`                        | Última sincronização de cada fonte                  |
+| Endpoint                                | Descrição                                                    |
+| --------------------------------------- | ------------------------------------------------------------ |
+| `GET /parlamentares`                    | Lista com busca e filtros, paginada                          |
+| `GET /parlamentares/:id`                | Dados e resumo de gastos                                     |
+| `GET /parlamentares/:id/despesas`       | Despesas com filtros de ano, mês e categoria                 |
+| `GET /parlamentares/:id/gastos-mensais` | Série mensal                                                 |
+| `GET /rankings`                         | Total por parlamentar (casa, ano, categoria, partido, UF)    |
+| `GET /estatisticas`                     | Totais gerais da casa, por categoria e por estado            |
+| `GET /parlamentares/:id/emendas`        | Emendas do parlamentar: totais, por área e localidade, lista |
+| `GET /categorias?casa=`                 | Categorias de despesa de cada casa                           |
+| `GET /fornecedores/:documento`          | Fornecedor e parlamentares que o pagaram                     |
+| `GET /comparacao?ids=a,b`               | Comparação de 2 a 4 parlamentares                            |
+| `GET /meta/sync`                        | Última sincronização de cada fonte                           |
 
 Documentação interativa em `/docs` (Swagger). Os endpoints agregados usam cache em Redis.
 
@@ -92,7 +100,8 @@ docker compose up -d
 pnpm install
 pnpm db:deploy        # aplica as migrations
 
-# 4. Carga inicial: deputados + despesas dos anos em SYNC_INITIAL_YEARS (~7 min)
+# 4. Carga inicial dos anos em SYNC_INITIAL_YEARS: Câmara (~7 min), Senado (~2 min) e,
+#    com TRANSPARENCIA_API_KEY no .env, emendas (~7 min por ano)
 pnpm sync:initial
 
 # 5. Subir web (3000), API (3001) e worker em modo dev
@@ -112,7 +121,7 @@ pnpm dev
 | `pnpm typecheck`    | Checagem de tipos                                                                  |
 | `pnpm test`         | Testes unitários (Vitest)                                                          |
 | `pnpm test:e2e`     | e2e da API (Supertest), integração do worker (Postgres) e front (Playwright + axe) |
-| `pnpm sync:initial` | Carga inicial de deputados e despesas                                              |
+| `pnpm sync:initial` | Carga inicial: Câmara, Senado e emendas                                            |
 | `pnpm db:migrate`   | Cria/aplica migrations em desenvolvimento                                          |
 | `pnpm format`       | Formata o código com Prettier                                                      |
 
@@ -139,8 +148,8 @@ As decisões não óbvias estão registradas, com o motivo de cada uma, em [docs
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ---- |
 | [Dados Abertos da Câmara](https://dadosabertos.camara.leg.br/swagger/api.html)                                                                             | Deputados                 | 1    |
 | [Cota Parlamentar — arquivos anuais](https://www2.camara.leg.br/transparencia/cota-para-exercicio-da-atividade-parlamentar/dados-abertos-cota-parlamentar) | Despesas (CEAP)           | 1    |
-| Dados Abertos do Senado (CSV da CEAPS)                                                                                                                     | Senadores e despesas      | 3    |
-| [Portal da Transparência (CGU)](https://api.portaldatransparencia.gov.br)                                                                                  | Emendas parlamentares     | 3    |
+| [Dados Abertos do Senado](https://legis.senado.leg.br/dadosabertos) e CSV anual da CEAPS                                                                   | Senadores e despesas      | 3    |
+| [Portal da Transparência (CGU)](https://api.portaldatransparencia.gov.br) (chave gratuita)                                                                 | Emendas parlamentares     | 3    |
 | Dados Abertos do TSE                                                                                                                                       | Bens e contas de campanha | 4+   |
 
 ## Roadmap
@@ -148,6 +157,6 @@ As decisões não óbvias estão registradas, com o motivo de cada uma, em [docs
 - [x] **Fase 0**: monorepo, Docker Compose, Prisma, lint/format, CI
 - [x] **Fase 1**: ingestão da Câmara, API de parlamentares/despesas, busca e página do parlamentar
 - [x] **Fase 2**: rankings, fornecedores, comparação, estatísticas, cache
-- [ ] **Fase 3**: Senado e emendas parlamentares
+- [x] **Fase 3**: Senado e emendas parlamentares
 - [ ] **Fase 4**: pontos de atenção (detecção simples de valores fora do padrão)
 - [ ] **Fase 5**: deploy e README final

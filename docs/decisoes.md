@@ -58,10 +58,78 @@ uma nota de 28/01/2026 pode ser lançada na competência dez/2025.
 | ------------------------------- | ------------------------- | ----------------------------------------------------------------- |
 | Deputados                       | segunda, 04:00 (Brasília) | Muda pouco: posses, licenças, trocas de partido                   |
 | Despesas (ano atual e anterior) | diariamente, 07:00        | O arquivo é regerado de madrugada; reembolsos chegam meses depois |
+| Senadores                       | segunda, 04:30            | Idem deputados                                                    |
+| Despesas do Senado (CEAPS)      | diariamente, 07:30        | O CSV é atualizado por volta das 02:00                            |
+| Emendas (ano atual e anterior)  | domingo, 02:00            | Mudam devagar; ~7 min por ano a 1 req/s, de madrugada             |
 
-A fila tem concorrência 1, então deputados e despesas nunca rodam ao mesmo tempo. Para
-carga inicial ou depuração existe a CLI (`pnpm sync:initial`,
-`pnpm --filter @raio-x/worker sync despesas 2024`), que não passa pela fila.
+A fila tem concorrência 1, então as sincronizações nunca rodam ao mesmo tempo. Sem
+`TRANSPARENCIA_API_KEY`, o agendamento de emendas é removido e o resto funciona. Para carga
+inicial ou depuração existe a CLI (`pnpm sync:initial`,
+`pnpm --filter @raio-x/worker sync despesas 2024`, `... sync emendas 2025`), que não passa
+pela fila.
+
+## Senado: CSV da CEAPS e vínculo pelo nome
+
+O CSV anual da CEAPS (`despesa_ceaps_AAAA.csv`) é ISO-8859-1, separado por `;`, tem uma
+linha de metadados antes do cabeçalho, valores no formato brasileiro (inclusive `",03"`,
+sem zero à esquerda) e datas `dd/mm/aaaa`. `COD_DOCUMENTO` é único no arquivo de cada ano
+(verificado em 2025 e 2026), então a chave é `senado:<ano>:<COD_DOCUMENTO>`.
+
+Diferenças em relação à Câmara, todas visíveis na interface:
+
+- **Só existe o valor reembolsado**: sem valor do documento nem glosa.
+- **Sem link para o comprovante.**
+- **O senador vem só pelo nome**, sem identificador. O vínculo usa o `IndiceNomes`
+  (`apps/worker/src/comum/indice-nomes.ts`): nome parlamentar idêntico e único; senão,
+  todas as palavras do nome da fonte em ordem no nome civil, com a mesma primeira palavra
+  ("WEVERTON ROCHA" → "Weverton", nome civil "Weverton Rocha Marques de Sousa"). Homônimos
+  (há dois "Fernando Carvalho", ambos de SE) **nunca são resolvidos no chute**: as linhas
+  ficam sem vínculo e são listadas em `SyncRun.detalhes.semVinculo`. Em 2025 e 2026 todas
+  as linhas foram vinculadas.
+- **Categorias próprias**: as cotas têm regras diferentes, então as categorias do Senado
+  têm `casa = SENADO` e slug com prefixo `senado-`, mesmo quando o nome se parece com uma
+  da Câmara ("Divulgação da atividade parlamentar" existe nas duas).
+
+**Só entra como senador quem exerceu o mandato.** A lista da legislatura traz titulares e
+suplentes, inclusive os que nunca assumiram (só 107 dos 245 nomes da legislatura 57
+exerceram). Vários desses suplentes são **deputados federais** (ex.: Rodolfo Nogueira,
+Fabio Garcia, Eduardo Velloso, Waldemar Oliveira): importá-los criava a mesma pessoa duas
+vezes, uma em cada casa, e deixava ambíguo o autor de centenas de emendas. Agora só entram
+os que têm um exercício (`Mandato.Exercicios`) dentro do período da legislatura, além dos em
+exercício hoje; quem sai da lista e não tem despesas é removido.
+
+**Câmara e Senado nunca são somados.** Ranking e estatísticas recebem `casa` (padrão
+Câmara) e a comparação recusa parlamentares de casas diferentes. Fornecedores, por outro
+lado, são compartilhados: o mesmo CNPJ que recebeu de deputados e senadores tem uma página só.
+
+## Emendas parlamentares (Portal da Transparência)
+
+- **15 itens por página**, sem opção de aumentar: ~420 páginas por ano. Com 1 req/s
+  (`TRANSPARENCIA_RATE_LIMIT_PER_SECOND`), ~7 minutos por ano.
+- **Valores acumulados que mudam com o tempo** (empenhado → liquidado → pago). Como a fonte
+  é consultada inteira, cada sincronização substitui o ano numa transação. Uma resposta
+  vazia interrompe a sincronização em vez de apagar o ano.
+- **Autor só pelo nome**, sem casa nem identificador. O vínculo usa o mesmo `IndiceNomes`,
+  sobre deputados e senadores juntos; um nome que exista nas duas casas para pessoas
+  diferentes (ex.: dois "Bebeto", um deputado do RJ e um senador da BA) fica sem vínculo.
+  O que sobra sem vínculo são apelidos que não aparecem no nome civil (ex.: "YURY DO
+  PAREDAO", cadastrado na Câmara como "Yury Bruno") e substitutos que não estão na base.
+
+  | Ano  | Emendas | Bancada/comissão | Vinculadas      | Sem vínculo |
+  | ---- | ------- | ---------------- | --------------- | ----------- |
+  | 2025 | 6.310   | 239              | 6.056 (99,75%¹) | 15          |
+  | 2026 | 5.955   | 159              | 5.793 (99,95%¹) | 3           |
+
+  ¹ Entre as emendas com uma pessoa como autor. Os vínculos feitos pela regra do nome civil
+  foram conferidos um a um (ex.: "DR. FLAVIO" → Dr Flávio, RJ, substituto de Delegado
+  Ramagem; "RAFAEL BENTO" → Rafael Fera, RO, sucessor de Lebrão).
+
+- **Autores coletivos** (emendas de bancada e comissão) ficam sem vínculo de propósito.
+- **Sucessão de mandato**: autores como "RODRIGO DA ZAELI (EX-PARLAMENTAR ABILIO BRUNINI,
+  NOS TERMOS ART. 78 LDO 2025...)" mostram que a emenda passou para o sucessor. O vínculo é
+  com quem aparece como autor; o texto entre parênteses é guardado e exibido.
+- **Fotos do Senado**: a API informa `http://www.senado.leg.br/.../senador{codigo}.jpg`, que
+  redireciona; gravamos o destino final em HTTPS (`legis.senado.leg.br`).
 
 ## Front-end: renderização por requisição com cache de dados
 
