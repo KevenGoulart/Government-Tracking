@@ -67,6 +67,18 @@ describe('Rankings, estatísticas, fornecedores e comparação (e2e)', () => {
       );
     });
 
+    it('separa Câmara e Senado (padrão: Câmara)', async () => {
+      const senado = rankingSchema.parse(
+        (await http().get('/rankings?casa=SENADO').expect(200)).body,
+      );
+      expect(senado).toMatchObject({ casa: 'SENADO', ano: 2025 });
+      expect(senado.data.map((i) => [i.parlamentar.nome, i.total])).toEqual([
+        ['Davi Senador', '900.00'],
+      ]);
+      const camara = rankingSchema.parse((await http().get('/rankings').expect(200)).body);
+      expect(camara.data.some((i) => i.parlamentar.casa === 'SENADO')).toBe(false);
+    });
+
     it('numera as posições considerando a página', async () => {
       const res = await http().get('/rankings?pageSize=1&page=2').expect(200);
       const body = rankingSchema.parse(res.body);
@@ -79,6 +91,7 @@ describe('Rankings, estatísticas, fornecedores e comparação (e2e)', () => {
     it('retorna totais, categorias, estados e maiores gastos do ano', async () => {
       const res = await http().get('/estatisticas').expect(200);
       expect(estatisticasSchema.parse(res.body)).toEqual({
+        casa: 'CAMARA',
         ano: 2025,
         anosDisponiveis: [2025, 2024],
         total: '1550.00',
@@ -103,16 +116,29 @@ describe('Rankings, estatísticas, fornecedores e comparação (e2e)', () => {
       });
     });
 
+    it('calcula as estatísticas do Senado separadamente', async () => {
+      const res = await http().get('/estatisticas?casa=SENADO').expect(200);
+      expect(estatisticasSchema.parse(res.body)).toMatchObject({
+        casa: 'SENADO',
+        ano: 2025,
+        anosDisponiveis: [2025],
+        total: '900.00',
+        quantidadeParlamentares: 1,
+        porCategoria: [{ slug: 'senado-aluguel-de-imoveis', total: '900.00' }],
+        porUf: [{ uf: 'AP', total: '900.00' }],
+      });
+    });
+
     it('guarda a resposta no cache do Redis', async () => {
       await http().get('/estatisticas?ano=2024').expect(200);
-      const chaves = await redis.keys('cache:*:*:estatisticas:2024');
+      const chaves = await redis.keys('cache:*:*:estatisticas:CAMARA:2024');
       expect(chaves).toHaveLength(1);
       expect(await redis.ttl(chaves[0] as string)).toBeGreaterThan(0);
     });
 
     it('serve do cache em chamadas seguintes', async () => {
       const primeira = await http().get('/estatisticas?ano=2024').expect(200);
-      const [chave] = await redis.keys('cache:*:*:estatisticas:2024');
+      const [chave] = await redis.keys('cache:*:*:estatisticas:CAMARA:2024');
       // Altera o valor guardado: a segunda resposta tem que vir do cache, não do banco
       await redis.set(chave as string, JSON.stringify({ ...primeira.body, total: '999.00' }));
       const segunda = await http().get('/estatisticas?ano=2024').expect(200);
@@ -197,6 +223,11 @@ describe('Rankings, estatísticas, fornecedores e comparação (e2e)', () => {
     it('exige de 2 a 4 parlamentares', async () => {
       await http().get(`/comparacao?ids=${ids.ana.id}`).expect(400);
       await http().get('/comparacao').expect(400);
+    });
+
+    it('não compara parlamentares de casas diferentes', async () => {
+      const res = await http().get(`/comparacao?ids=${ids.ana.id},${ids.davi.id}`).expect(400);
+      expect((res.body as { message: string }).message).toMatch(/mesma casa/);
     });
 
     it('responde 404 quando algum parlamentar não existe', async () => {

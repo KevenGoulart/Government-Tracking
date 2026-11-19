@@ -1,16 +1,10 @@
-import {
-  Controller,
-  Get,
-  Injectable,
-  NotFoundException,
-  Param,
-  type PipeTransform,
-  Query,
-} from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiNotFoundResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   type Categoria,
   categoriaSchema,
+  type CategoriasQuery,
+  categoriasQuerySchema,
   type Despesa,
   despesaSchema,
   type DespesasQuery,
@@ -33,18 +27,10 @@ import {
   parlamentarResumoSchema,
 } from '@raio-x/shared';
 import { z } from 'zod';
+import { IdParlamentarPipe } from '../common/id-parlamentar.pipe';
 import { ApiZodOk, ApiZodQuery } from '../common/swagger-zod';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { ParlamentaresService } from './parlamentares.service';
-
-/** IDs gerados pelo Prisma (cuid). Formato inválido responde 404 sem consultar o banco. */
-@Injectable()
-class IdPipe implements PipeTransform<string, string> {
-  transform(value: string): string {
-    if (!/^[a-z0-9]{20,32}$/.test(value)) throw new NotFoundException('Parlamentar não encontrado');
-    return value;
-  }
-}
 
 @ApiTags('parlamentares')
 @Controller()
@@ -70,9 +56,12 @@ export class ParlamentaresController {
 
   @Get('categorias')
   @ApiOperation({ summary: 'Categorias de despesa da cota parlamentar' })
+  @ApiZodQuery(categoriasQuerySchema)
   @ApiZodOk(z.array(categoriaSchema))
-  categorias(): Promise<Categoria[]> {
-    return this.service.categorias();
+  categorias(
+    @Query(new ZodValidationPipe(categoriasQuerySchema)) query: CategoriasQuery,
+  ): Promise<Categoria[]> {
+    return this.service.categorias(query);
   }
 
   @Get('parlamentares/:id')
@@ -81,7 +70,7 @@ export class ParlamentaresController {
   @ApiZodOk(parlamentarDetalheSchema)
   @ApiNotFoundResponse({ description: 'Parlamentar não encontrado' })
   detalhe(
-    @Param('id', IdPipe) id: string,
+    @Param('id', IdParlamentarPipe) id: string,
     @Query(new ZodValidationPipe(parlamentarDetalheQuerySchema)) query: ParlamentarDetalheQuery,
   ): Promise<ParlamentarDetalhe> {
     return this.service.detalhe(id, query);
@@ -93,7 +82,7 @@ export class ParlamentaresController {
   @ApiZodOk(paginatedSchema(despesaSchema))
   @ApiNotFoundResponse({ description: 'Parlamentar não encontrado' })
   despesas(
-    @Param('id', IdPipe) id: string,
+    @Param('id', IdParlamentarPipe) id: string,
     @Query(new ZodValidationPipe(despesasQuerySchema)) query: DespesasQuery,
   ): Promise<Paginated<Despesa>> {
     return this.service.despesas(id, query);
@@ -105,7 +94,7 @@ export class ParlamentaresController {
   @ApiZodOk(z.array(gastoMensalSchema))
   @ApiNotFoundResponse({ description: 'Parlamentar não encontrado' })
   gastosMensais(
-    @Param('id', IdPipe) id: string,
+    @Param('id', IdParlamentarPipe) id: string,
     @Query(new ZodValidationPipe(gastosMensaisQuerySchema)) query: GastosMensaisQuery,
   ): Promise<GastoMensal[]> {
     return this.service.gastosMensais(id, query);

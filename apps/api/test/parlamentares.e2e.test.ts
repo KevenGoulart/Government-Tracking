@@ -2,6 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import {
   despesaSchema,
+  emendasParlamentarSchema,
   filtrosParlamentaresSchema,
   gastoMensalSchema,
   paginatedSchema,
@@ -41,7 +42,7 @@ describe('Parlamentares (e2e)', () => {
       const res = await http().get('/parlamentares?pageSize=2').expect(200);
       const body = lista.parse(res.body);
       expect(body.data.map((p) => p.nome)).toEqual(['Ana Lúcia Souza', 'Bruno Carvalho']);
-      expect(body.meta).toEqual({ page: 1, pageSize: 2, total: 3, totalPages: 2 });
+      expect(body.meta).toEqual({ page: 1, pageSize: 2, total: 4, totalPages: 2 });
     });
 
     it.each([
@@ -60,7 +61,7 @@ describe('Parlamentares (e2e)', () => {
 
     it('ignora filtros vazios enviados por formulários', async () => {
       const res = await http().get('/parlamentares?nome=&partido=&uf=').expect(200);
-      expect(lista.parse(res.body).meta.total).toBe(3);
+      expect(lista.parse(res.body).meta.total).toBe(4);
     });
 
     it('trata caracteres curinga do LIKE como texto', async () => {
@@ -79,13 +80,58 @@ describe('Parlamentares (e2e)', () => {
     const res = await http().get('/parlamentares/filtros').expect(200);
     expect(filtrosParlamentaresSchema.parse(res.body)).toEqual({
       partidos: ['PL', 'PT'],
-      ufs: ['MG', 'RJ', 'SP'],
+      ufs: ['AP', 'MG', 'RJ', 'SP'],
     });
   });
 
-  it('GET /categorias lista as categorias', async () => {
-    const res = await http().get('/categorias').expect(200);
-    expect(res.body).toHaveLength(2);
+  it('GET /categorias lista as categorias, com filtro por casa', async () => {
+    expect((await http().get('/categorias').expect(200)).body).toHaveLength(3);
+    expect((await http().get('/categorias?casa=CAMARA').expect(200)).body).toHaveLength(2);
+    const senado = await http().get('/categorias?casa=SENADO').expect(200);
+    expect(senado.body).toEqual([
+      { slug: 'senado-aluguel-de-imoveis', nome: 'Aluguel de imóveis' },
+    ]);
+  });
+
+  it('filtra a listagem por casa', async () => {
+    const res = await http().get('/parlamentares?casa=SENADO').expect(200);
+    expect(
+      paginatedSchema(parlamentarResumoSchema)
+        .parse(res.body)
+        .data.map((p) => p.nome),
+    ).toEqual(['Davi Senador']);
+  });
+
+  describe('GET /parlamentares/:id/emendas', () => {
+    it('retorna totais do ano mais recente, por área e localidade, sem emendas de bancada', async () => {
+      const res = await http().get(`/parlamentares/${ids.ana.id}/emendas`).expect(200);
+      const body = emendasParlamentarSchema.parse(res.body);
+      expect(body).toMatchObject({
+        ano: 2025,
+        anosDisponiveis: [
+          { ano: 2025, empenhado: '4000.00', pago: '3400.00', quantidade: 2 },
+          { ano: 2024, empenhado: '500.00', pago: '0.00', quantidade: 1 },
+        ],
+        totais: { empenhado: '4000.00', pago: '3400.00', quantidade: 2 },
+        porFuncao: [
+          { funcao: 'Educação', empenhado: '3000.00', pago: '3000.00', quantidade: 1 },
+          { funcao: 'Saúde', empenhado: '1000.00', pago: '400.00', quantidade: 1 },
+        ],
+      });
+      expect(body.data.map((e) => e.codigo)).toEqual(['E2', 'E1']);
+      expect(body.porLocalidade[0]).toMatchObject({ localidade: 'CAMPINAS - SP' });
+    });
+
+    it('aceita o ano e responde vazio para quem não tem emendas', async () => {
+      const ano2024 = await http().get(`/parlamentares/${ids.ana.id}/emendas?ano=2024`).expect(200);
+      expect(emendasParlamentarSchema.parse(ano2024.body).totais.empenhado).toBe('500.00');
+      const bruno = await http().get(`/parlamentares/${ids.bruno.id}/emendas`).expect(200);
+      expect(emendasParlamentarSchema.parse(bruno.body)).toMatchObject({ ano: null, data: [] });
+    });
+
+    it('responde 404 para parlamentar inexistente', async () => {
+      await http().get('/parlamentares/cl0000000000000000000000/emendas').expect(404);
+    });
   });
 
   describe('GET /parlamentares/:id', () => {
@@ -208,10 +254,14 @@ describe('Parlamentares (e2e)', () => {
 
   it('GET /meta/sync retorna a última sincronização bem-sucedida de cada fonte', async () => {
     const res = await http().get('/meta/sync').expect(200);
+    // Fontes que nunca sincronizaram aparecem com null e não contam para "atualizadoEm"
     expect(syncStatusSchema.parse(res.body)).toEqual({
       fontes: [
         { fonte: 'camara:deputados', ultimaSincronizacao: '2026-11-17T07:04:00.000Z' },
         { fonte: 'camara:despesas', ultimaSincronizacao: '2026-11-19T10:02:00.000Z' },
+        { fonte: 'senado:senadores', ultimaSincronizacao: null },
+        { fonte: 'senado:despesas', ultimaSincronizacao: null },
+        { fonte: 'transparencia:emendas', ultimaSincronizacao: null },
       ],
       atualizadoEm: '2026-11-17T07:04:00.000Z',
     });

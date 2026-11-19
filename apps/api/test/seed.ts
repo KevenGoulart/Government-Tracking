@@ -133,5 +133,55 @@ export async function seed(prisma: PrismaClient) {
     ],
   });
 
-  return { ana, bruno, carla, posto, grafica };
+  // Senado: um senador com uma despesa (R$ 900) numa categoria própria da CEAPS
+  const davi = await prisma.parlamentar.create({
+    data: {
+      casa: 'SENADO',
+      idExterno: '5000',
+      nome: 'Davi Senador',
+      nomeBusca: 'davi senador',
+      partido: 'PT',
+      uf: 'AP',
+      emExercicio: true,
+    },
+  });
+  const aluguel = await prisma.categoria.create({
+    data: { slug: 'senado-aluguel-de-imoveis', nome: 'Aluguel de imóveis', casa: 'SENADO' },
+  });
+  const imobiliaria = await prisma.fornecedor.create({
+    data: {
+      chave: 'nome:IMOBILIARIA AP',
+      nome: 'Imobiliária AP',
+      nomeNormalizado: 'IMOBILIARIA AP',
+    },
+  });
+  await prisma.despesa.create({
+    data: despesa(davi.id, 2025, 2, '900.00', aluguel.id, imobiliaria.id),
+  });
+
+  // Emendas da Ana em 2025: saúde (1000 empenhado / 400 pago) e educação (3000 / 3000)
+  const emenda = (codigo: string, funcao: string, empenhado: string, pago: string, ano = 2025) => ({
+    codigo,
+    ano,
+    tipo: 'Emenda Individual - Transferências Especiais',
+    autor: 'ANA LUCIA SOUZA',
+    parlamentarId: ana.id,
+    localidade: funcao === 'Saúde' ? 'SÃO PAULO - SP' : 'CAMPINAS - SP',
+    funcao,
+    subfuncao: null,
+    valorEmpenhado: empenhado,
+    valorLiquidado: pago,
+    valorPago: pago,
+  });
+  await prisma.emenda.createMany({
+    data: [
+      emenda('E1', 'Saúde', '1000.00', '400.00'),
+      emenda('E2', 'Educação', '3000.00', '3000.00'),
+      emenda('E3', 'Saúde', '500.00', '0.00', 2024),
+      // Emenda de bancada: sem parlamentar vinculado
+      { ...emenda('E4', 'Saúde', '9999.00', '0.00'), autor: 'BANCADA DE SP', parlamentarId: null },
+    ],
+  });
+
+  return { ana, bruno, carla, posto, grafica, davi };
 }

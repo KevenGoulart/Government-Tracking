@@ -1,5 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@raio-x/db';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { type Casa, Prisma } from '@raio-x/db';
 import {
   buildPaginationMeta,
   type Comparacao,
@@ -33,25 +33,29 @@ export class AgregadosService {
     private readonly cache: CacheService,
   ) {}
 
-  /** Ano mais recente com despesas (padrão quando o cliente não informa o ano). */
-  async anoMaisRecente(): Promise<number | null> {
-    const { _max } = await this.prisma.despesa.aggregate({ _max: { ano: true } });
+  /** Ano mais recente com despesas da casa (padrão quando o cliente não informa o ano). */
+  async anoMaisRecente(casa: Casa): Promise<number | null> {
+    const { _max } = await this.prisma.despesa.aggregate({
+      where: { parlamentar: { casa } },
+      _max: { ano: true },
+    });
     return _max.ano;
   }
 
   /**
-   * Total gasto por parlamentar no ano. Partido e UF são os atuais do parlamentar
-   * (a fonte não informa o partido na data de cada despesa de forma consistente).
+   * Total gasto por parlamentar no ano, numa das casas (as cotas da Câmara e do Senado têm
+   * regras e limites diferentes e nunca são somadas). Partido e UF são os atuais.
    */
   async ranking(query: RankingQuery): Promise<Ranking> {
-    const ano = query.ano ?? (await this.anoMaisRecente());
-    if (ano === null) return { ano, data: [], meta: buildPaginationMeta(query, 0) };
+    const { casa } = query;
+    const ano = query.ano ?? (await this.anoMaisRecente(casa));
+    if (ano === null) return { casa, ano, data: [], meta: buildPaginationMeta(query, 0) };
 
     return this.cache.obterOuCalcular(
       `ranking:${JSON.stringify({ ...query, ano })}`,
       UMA_HORA,
       async () => {
-        const condicoes = [Prisma.sql`d.ano = ${ano}`];
+        const condicoes = [Prisma.sql`d.ano = ${ano}`, Prisma.sql`p.casa = ${casa}::"Casa"`];
         if (query.partido) condicoes.push(Prisma.sql`p.partido = ${query.partido}`);
         if (query.uf) condicoes.push(Prisma.sql`p.uf = ${query.uf}`);
         if (query.categoria) {
@@ -77,6 +81,7 @@ export class AgregadosService {
         ]);
 
         return {
+          casa,
           ano,
           data: linhas.map((linha, i) => this.itemRanking(linha, offset + i + 1)),
           meta: buildPaginationMeta(query, Number(contagem[0].total)),
@@ -86,8 +91,10 @@ export class AgregadosService {
   }
 
   async estatisticas(query: EstatisticasQuery): Promise<Estatisticas> {
+    const { casa } = query;
     const anos = await this.prisma.despesa.groupBy({
       by: ['ano'],
+      where: { parlamentar: { casa } },
       orderBy: { ano: 'desc' },
     });
     const anosDisponiveis = anos.map((a) => a.ano);
@@ -95,6 +102,7 @@ export class AgregadosService {
 
     if (ano === null) {
       return {
+        casa,
         ano,
         anosDisponiveis,
         total: '0.00',
@@ -107,7 +115,7 @@ export class AgregadosService {
       };
     }
 
-    return this.cache.obterOuCalcular(`estatisticas:${ano}`, UMA_HORA, async () => {
+    return this.cache.obterOuCalcular(`estatisticas:${casa}:${ano}`, UMA_HORA, async () => {
       const [[resumo], porCategoria, porUf, ranking] = await Promise.all([
         this.prisma.$queryRaw<
           [
@@ -119,21 +127,25 @@ export class AgregadosService {
             },
           ]
         >`
-          SELECT SUM("valorLiquido") AS total, COUNT(*) AS despesas,
-                 COUNT(DISTINCT "parlamentarId") AS parlamentares,
-                 COUNT(DISTINCT "fornecedorId") AS fornecedores
-          FROM "Despesa" WHERE ano = ${ano}`,
-        this.totaisPorCategoria(Prisma.sql`d.ano = ${ano}`),
+          SELECT SUM(d."valorLiquido") AS total, COUNT(*) AS despesas,
+                 COUNT(DISTINCT d."parlamentarId") AS parlamentares,
+                 COUNT(DISTINCT d."fornecedorId") AS fornecedores
+          FROM "Despesa" d JOIN "Parlamentar" p ON p.id = d."parlamentarId"
+          WHERE d.ano = ${ano} AND p.casa = ${casa}::"Casa"`,
+        this.totaisPorCategoria(
+          Prisma.sql`d.ano = ${ano} AND d."parlamentarId" IN (SELECT id FROM "Parlamentar" WHERE casa = ${casa}::"Casa")`,
+        ),
         this.prisma.$queryRaw<{ uf: string; total: Prisma.Decimal; parlamentares: bigint }[]>`
           SELECT p.uf, SUM(d."valorLiquido") AS total, COUNT(DISTINCT p.id) AS parlamentares
           FROM "Despesa" d JOIN "Parlamentar" p ON p.id = d."parlamentarId"
-          WHERE d.ano = ${ano} AND p.uf <> 'NA'
+          WHERE d.ano = ${ano} AND p.casa = ${casa}::"Casa" AND p.uf <> 'NA'
           GROUP BY p.uf
           ORDER BY total DESC`,
-        this.ranking({ ano, page: 1, pageSize: TOP_GASTOS_HOME }),
+        this.ranking({ casa, ano, page: 1, pageSize: TOP_GASTOS_HOME }),
       ]);
 
       return {
+        casa,
         ano,
         anosDisponiveis,
         total: decimal(resumo.total),
@@ -168,6 +180,10 @@ export class AgregadosService {
     const faltando = query.ids.filter((id) => !parlamentares.some((p) => p.id === id));
     if (faltando.length > 0) {
       throw new NotFoundException(`Parlamentares não encontrados: ${faltando.join(', ')}`);
+    }
+    if (new Set(parlamentares.map((p) => p.casa)).size > 1) {
+      // As cotas têm regras e limites diferentes: comparar deputado com senador engana.
+      throw new BadRequestException('Compare apenas parlamentares da mesma casa');
     }
 
     const ano =

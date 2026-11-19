@@ -3,6 +3,7 @@ import { AgregadosModule } from './agregados/agregados.module';
 import { CacheModule } from './cache/cache.module';
 import { RedisModule } from './common/redis.module';
 import { ConfigModule } from './config/config.module';
+import { EmendasModule } from './emendas/emendas.module';
 import { FornecedoresModule } from './fornecedores/fornecedores.module';
 import { HealthModule } from './health/health.module';
 import { MetaController } from './meta/meta.controller';
@@ -19,6 +20,7 @@ import { PrismaModule } from './prisma/prisma.module';
     ParlamentaresModule,
     AgregadosModule,
     FornecedoresModule,
+    EmendasModule,
   ],
   controllers: [MetaController],
 })

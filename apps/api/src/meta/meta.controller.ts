@@ -23,10 +23,9 @@ export class MetaController {
         return { fonte, ultimaSincronizacao: ultima?.fim?.toISOString() ?? null };
       }),
     );
-    const datas = fontes.map((f) => f.ultimaSincronizacao);
-    const atualizadoEm = datas.every((d): d is string => d !== null)
-      ? datas.reduce((a, b) => (a < b ? a : b))
-      : null;
+    // Fontes que nunca sincronizaram (ex.: emendas sem chave de API) não contam.
+    const datas = fontes.flatMap((f) => (f.ultimaSincronizacao ? [f.ultimaSincronizacao] : []));
+    const atualizadoEm = datas.length > 0 ? datas.reduce((a, b) => (a < b ? a : b)) : null;
     return { fontes, atualizadoEm };
   }
 }

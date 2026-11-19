@@ -3,6 +3,7 @@ import { Prisma } from '@raio-x/db';
 import {
   buildPaginationMeta,
   type Categoria,
+  type CategoriasQuery,
   type Despesa,
   type DespesasQuery,
   type FiltrosParlamentares,
@@ -91,8 +92,9 @@ export class ParlamentaresService {
     };
   }
 
-  async categorias(): Promise<Categoria[]> {
+  async categorias(query: CategoriasQuery = {}): Promise<Categoria[]> {
     return this.prisma.categoria.findMany({
+      where: query.casa ? { casa: query.casa } : undefined,
       select: { slug: true, nome: true },
       orderBy: { nome: 'asc' },
     });
