@@ -1,4 +1,9 @@
-import { despesasQuerySchema, parlamentarDetalheQuerySchema } from '@raio-x/shared';
+import {
+  type Categoria,
+  despesasQuerySchema,
+  type GastoMensal,
+  parlamentarDetalheQuerySchema,
+} from '@raio-x/shared';
 import { ExternalLink } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -9,11 +14,13 @@ import { Paginacao } from '@/components/paginacao';
 import { GastosMensais } from '@/components/parlamentar/gastos-mensais';
 import { GastosPorCategoria } from '@/components/parlamentar/gastos-por-categoria';
 import { MaioresFornecedores } from '@/components/parlamentar/maiores-fornecedores';
+import { SecaoEmendas } from '@/components/parlamentar/secao-emendas';
 import { SeletorAno } from '@/components/parlamentar/seletor-ano';
 import { FiltrosDespesas, TabelaDespesas } from '@/components/parlamentar/tabela-despesas';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { api, ApiError } from '@/lib/api';
+import { CASAS } from '@/lib/casa';
 import { formatarMoeda } from '@/lib/format';
 import { achatar, hrefCom, lerParams, type SearchParams } from '@/lib/search-params';
 
@@ -66,13 +73,21 @@ export default async function ParlamentarPage({ params, searchParams }: Props) {
     ...(ordenacao && ORDENACOES[ordenacao]),
   });
 
-  const [gastos, despesas, categorias] = ano
-    ? await Promise.all([
-        api.gastosMensais(id, ano),
-        api.despesas(id, { ...filtros, ano }),
-        api.categorias(),
-      ])
-    : [[], null, []];
+  const info = CASAS[parlamentar.casa];
+  // Emendas têm ano e paginação próprios (parâmetros separados dos filtros de despesas)
+  const anoEmendas = Number(brutos.anoEmendas) || ano || undefined;
+  const paginaEmendas = Number(brutos.paginaEmendas) || 1;
+
+  const [[gastos, despesas, categorias], emendas] = await Promise.all([
+    ano
+      ? Promise.all([
+          api.gastosMensais(id, ano),
+          api.despesas(id, { ...filtros, ano }),
+          api.categorias(parlamentar.casa),
+        ])
+      : Promise.resolve<[GastoMensal[], null, Categoria[]]>([[], null, []]),
+    api.emendas(id, { ano: anoEmendas, page: paginaEmendas, pageSize: 10 }),
+  ]);
 
   const base = `/parlamentares/${id}`;
   const filtrosAtuais = {
@@ -100,8 +115,7 @@ export default async function ParlamentarPage({ params, searchParams }: Props) {
             </Badge>
           </div>
           <p className="text-muted-foreground">
-            Deputado(a) federal ·{' '}
-            {[parlamentar.partido, parlamentar.uf].filter(Boolean).join(' · ')}
+            {info.cargo} · {[parlamentar.partido, parlamentar.uf].filter(Boolean).join(' · ')}
             {parlamentar.nomeCivil && <> · Nome civil: {parlamentar.nomeCivil}</>}
           </p>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -112,12 +126,13 @@ export default async function ParlamentarPage({ params, searchParams }: Props) {
               Comparar com outros parlamentares
             </Link>
             <a
-              href={`https://www.camara.leg.br/deputados/${parlamentar.idExterno}`}
+              href={info.perfil(parlamentar.idExterno)}
               target="_blank"
               rel="noreferrer"
               className="text-primary inline-flex items-center gap-1 text-sm underline-offset-4 hover:underline"
             >
-              Perfil na Câmara dos Deputados <ExternalLink className="size-3.5" aria-hidden />
+              Perfil no site {parlamentar.casa === 'SENADO' ? 'do Senado' : 'da Câmara'}{' '}
+              <ExternalLink className="size-3.5" aria-hidden />
               <span className="sr-only">(abre em nova aba)</span>
             </a>
           </div>
@@ -132,7 +147,9 @@ export default async function ParlamentarPage({ params, searchParams }: Props) {
       ) : (
         <>
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <h2 className="text-xl font-semibold">Cota parlamentar em {ano}</h2>
+            <h2 className="text-xl font-semibold">
+              Cota parlamentar ({info.cota}) em {ano}
+            </h2>
             <SeletorAno
               anos={resumo.anosDisponiveis.map((a) => a.ano)}
               selecionado={ano}
@@ -200,9 +217,11 @@ export default async function ParlamentarPage({ params, searchParams }: Props) {
                 Despesas
               </h3>
               <p className="text-muted-foreground text-sm">
-                Valor líquido = valor do documento menos glosa. Estornos aparecem com valor
-                negativo. O filtro de mês usa o mês de competência, que pode diferir da data do
-                documento.
+                {parlamentar.casa === 'SENADO'
+                  ? 'Valor reembolsado ao senador. A fonte (CEAPS) não publica link para o comprovante.'
+                  : 'Valor líquido = valor do documento menos glosa.'}{' '}
+                Estornos aparecem com valor negativo. O filtro de mês usa o mês de competência, que
+                pode diferir da data do documento.
               </p>
             </div>
             {/* key: remonta o formulário quando a URL muda (defaultValue só vale na montagem) */}
@@ -226,6 +245,16 @@ export default async function ParlamentarPage({ params, searchParams }: Props) {
           </section>
         </>
       )}
+
+      <SecaoEmendas
+        emendas={emendas}
+        hrefAno={(novoAno) =>
+          `${hrefCom(base, { ano: ano ?? undefined }, { anoEmendas: novoAno })}#emendas`
+        }
+        hrefPagina={(pagina) =>
+          `${hrefCom(base, { ano: ano ?? undefined, anoEmendas: emendas.ano ?? undefined }, { paginaEmendas: pagina })}#emendas`
+        }
+      />
     </article>
   );
 }

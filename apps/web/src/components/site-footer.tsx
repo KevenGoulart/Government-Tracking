@@ -14,15 +14,33 @@ export function SiteFooter() {
             rel="noreferrer"
           >
             Dados Abertos da Câmara dos Deputados
-          </a>{' '}
-          e{' '}
+          </a>
+          ,{' '}
           <a
             href="https://www2.camara.leg.br/transparencia/cota-para-exercicio-da-atividade-parlamentar/dados-abertos-cota-parlamentar"
             className="hover:text-foreground underline underline-offset-4"
             target="_blank"
             rel="noreferrer"
           >
-            arquivos da Cota Parlamentar
+            Cota Parlamentar da Câmara
+          </a>
+          ,{' '}
+          <a
+            href="https://www12.senado.leg.br/dados-abertos"
+            className="hover:text-foreground underline underline-offset-4"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Dados Abertos do Senado
+          </a>{' '}
+          e{' '}
+          <a
+            href="https://portaldatransparencia.gov.br/emendas"
+            className="hover:text-foreground underline underline-offset-4"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Portal da Transparência (emendas)
           </a>
           .
         </p>

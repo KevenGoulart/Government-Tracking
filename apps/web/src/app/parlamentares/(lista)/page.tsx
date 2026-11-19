@@ -8,7 +8,7 @@ import { hrefCom, lerParams, type SearchParams } from '@/lib/search-params';
 
 export const metadata: Metadata = {
   title: 'Parlamentares',
-  description: 'Busque deputados federais por nome, partido ou estado.',
+  description: 'Busque deputados federais e senadores por nome, casa, partido ou estado.',
 };
 
 export default async function ParlamentaresPage({
@@ -17,19 +17,17 @@ export default async function ParlamentaresPage({
   searchParams: Promise<SearchParams>;
 }) {
   const query = lerParams(parlamentaresQuerySchema, await searchParams);
-  const [filtros, resultado] = await Promise.all([
-    api.filtros(),
-    api.parlamentares({ ...query, casa: 'CAMARA' }),
-  ]);
+  const [filtros, resultado] = await Promise.all([api.filtros(), api.parlamentares(query)]);
   const { data, meta } = resultado;
-  const atuais = { nome: query.nome, partido: query.partido, uf: query.uf };
+  const atuais = { nome: query.nome, casa: query.casa, partido: query.partido, uf: query.uf };
 
   return (
     <div className="space-y-8">
       <header className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Deputados federais</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Parlamentares</h1>
         <p className="text-muted-foreground">
-          Busque por nome (tolera erros de digitação), partido ou estado.
+          Deputados federais e senadores. Busque por nome (tolera erros de digitação), casa, partido
+          ou estado.
         </p>
       </header>
 

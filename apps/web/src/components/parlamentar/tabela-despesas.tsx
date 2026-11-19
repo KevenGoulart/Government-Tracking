@@ -197,7 +197,7 @@ export function TabelaDespesas({ despesas, total }: { despesas: Despesa[]; total
                       <span className="sr-only">(abre em nova aba)</span>
                     </Link>
                   ) : (
-                    <span className="text-muted-foreground text-xs">Sem documento digital</span>
+                    <span className="text-muted-foreground text-xs">Comprovante não publicado</span>
                   )}
                 </TableCell>
               </TableRow>

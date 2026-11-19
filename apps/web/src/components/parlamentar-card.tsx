@@ -1,6 +1,7 @@
 import type { ParlamentarResumo } from '@raio-x/shared';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
+import { CASAS } from '@/lib/casa';
 import { FotoParlamentar } from './foto-parlamentar';
 
 export function ParlamentarCard({ parlamentar }: { parlamentar: ParlamentarResumo }) {
@@ -14,7 +15,9 @@ export function ParlamentarCard({ parlamentar }: { parlamentar: ParlamentarResum
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium">{parlamentar.nome}</p>
           <p className="text-muted-foreground text-sm">
-            {[parlamentar.partido, parlamentar.uf].filter(Boolean).join(' · ')}
+            {[CASAS[parlamentar.casa].cargo, parlamentar.partido, parlamentar.uf]
+              .filter(Boolean)
+              .join(' · ')}
           </p>
         </div>
         <Badge variant={parlamentar.emExercicio ? 'secondary' : 'outline'}>

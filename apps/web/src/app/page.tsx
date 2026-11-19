@@ -4,25 +4,30 @@ import { BarrasHorizontais } from '@/components/graficos/barras-horizontais';
 import { Indicador } from '@/components/indicador';
 import { GastosPorCategoria } from '@/components/parlamentar/gastos-por-categoria';
 import { SeletorAno } from '@/components/parlamentar/seletor-ano';
+import { SeletorCasa } from '@/components/seletor-casa';
 import { TabelaRanking } from '@/components/ranking/tabela-ranking';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { api } from '@/lib/api';
+import { CASAS } from '@/lib/casa';
 import { formatarMoeda, formatarMoedaCompacta } from '@/lib/format';
 import { hrefCom, lerParams, type SearchParams } from '@/lib/search-params';
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const { ano: anoPedido } = lerParams(estatisticasQuerySchema, await searchParams);
-  const est = await api.estatisticas(anoPedido);
+  const { casa, ano: anoPedido } = lerParams(estatisticasQuerySchema, await searchParams);
+  const est = await api.estatisticas(casa, anoPedido);
   const { ano } = est;
+  const info = CASAS[casa];
+  const doRanking = (extra: Record<string, string | number | undefined>) =>
+    hrefCom('/ranking', { casa, ano: ano ?? undefined }, extra);
 
   return (
     <div className="space-y-10">
       <section className="space-y-4 py-6 text-center">
         <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Raio-X Público</h1>
         <p className="text-muted-foreground mx-auto max-w-2xl text-lg">
-          Veja como deputados federais usam a Cota para o Exercício da Atividade Parlamentar (CEAP),
-          com dados abertos oficiais da Câmara dos Deputados.
+          Veja como deputados federais e senadores usam a cota para o exercício da atividade
+          parlamentar e quais emendas apresentaram, com dados abertos oficiais.
         </p>
         <Button size="lg" asChild>
           <Link href="/parlamentares">Buscar parlamentares</Link>
@@ -36,12 +41,20 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       ) : (
         <>
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <h2 className="text-2xl font-semibold">Cota parlamentar em {ano}</h2>
-            <SeletorAno
-              anos={est.anosDisponiveis}
-              selecionado={ano}
-              hrefAno={(novoAno) => hrefCom('/', {}, { ano: novoAno })}
-            />
+            <h2 className="text-2xl font-semibold">
+              Cota parlamentar ({info.cota}) em {ano}
+            </h2>
+            <div className="flex flex-wrap gap-2">
+              <SeletorCasa
+                selecionada={casa}
+                hrefCasa={(novaCasa) => hrefCom('/', {}, { casa: novaCasa })}
+              />
+              <SeletorAno
+                anos={est.anosDisponiveis}
+                selecionado={ano}
+                hrefAno={(novoAno) => hrefCom('/', { casa }, { ano: novoAno })}
+              />
+            </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -51,7 +64,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               valor={est.quantidadeDespesas.toLocaleString('pt-BR')}
             />
             <Indicador
-              rotulo="Deputados com despesas"
+              rotulo={`${info.plural.charAt(0).toUpperCase()}${info.plural.slice(1)} com despesas`}
               valor={est.quantidadeParlamentares.toLocaleString('pt-BR')}
             />
             <Indicador
@@ -73,7 +86,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               <CardContent>
                 <GastosPorCategoria
                   categorias={est.porCategoria}
-                  hrefCategoria={(categoria) => hrefCom('/ranking', { ano }, { categoria })}
+                  hrefCategoria={(categoria) => doRanking({ categoria })}
                 />
               </CardContent>
             </Card>
@@ -90,7 +103,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               <CardContent className="space-y-4">
                 <TabelaRanking itens={est.maioresGastos} legenda={`Maiores totais de ${ano}`} />
                 <Link
-                  href={hrefCom('/ranking', {}, { ano })}
+                  href={doRanking({})}
                   className="text-primary text-sm underline-offset-4 hover:underline"
                 >
                   Ver ranking completo
@@ -105,8 +118,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
                 <h3>Gastos por estado</h3>
               </CardTitle>
               <CardDescription>
-                Total por estado do deputado, com a média por deputado (as bancadas têm tamanhos
-                diferentes).
+                Total por estado, com a média por parlamentar (as bancadas têm tamanhos diferentes).
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -116,8 +128,8 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
                   chave: u.uf,
                   rotulo: u.uf,
                   valor: Number(u.total),
-                  detalhe: `${u.parlamentares} deputados · média ${formatarMoedaCompacta(u.mediaPorParlamentar)}`,
-                  href: hrefCom('/ranking', { ano }, { uf: u.uf }),
+                  detalhe: `${u.parlamentares} ${info.plural} · média ${formatarMoedaCompacta(u.mediaPorParlamentar)}`,
+                  href: doRanking({ uf: u.uf }),
                 }))}
               />
             </CardContent>

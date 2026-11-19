@@ -6,7 +6,7 @@ import { CampoSelect } from './campo-select';
 
 interface BuscaParlamentaresProps {
   filtros: FiltrosParlamentares;
-  valores: Pick<ParlamentaresQuery, 'nome' | 'partido' | 'uf'>;
+  valores: Pick<ParlamentaresQuery, 'nome' | 'casa' | 'partido' | 'uf'>;
 }
 
 /**
@@ -14,14 +14,14 @@ interface BuscaParlamentaresProps {
  * mesmo sem JavaScript.
  */
 export function BuscaParlamentares({ filtros, valores }: BuscaParlamentaresProps) {
-  const temFiltro = Boolean(valores.nome || valores.partido || valores.uf);
+  const temFiltro = Boolean(valores.nome || valores.casa || valores.partido || valores.uf);
   return (
     <form
       action="/parlamentares"
       method="get"
       role="search"
       aria-label="Buscar parlamentares"
-      className="grid gap-4 sm:grid-cols-[1fr_10rem_8rem_auto] sm:items-end"
+      className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_8rem_10rem_7rem_auto] lg:items-end"
     >
       <div className="space-y-1.5">
         <label htmlFor="nome" className="text-sm font-medium">
@@ -37,6 +37,16 @@ export function BuscaParlamentares({ filtros, valores }: BuscaParlamentaresProps
           maxLength={100}
           autoComplete="off"
         />
+      </div>
+      <div className="space-y-1.5">
+        <label htmlFor="casa" className="text-sm font-medium">
+          Casa
+        </label>
+        <CampoSelect id="casa" name="casa" defaultValue={valores.casa ?? ''}>
+          <option value="">Todas</option>
+          <option value="CAMARA">Câmara</option>
+          <option value="SENADO">Senado</option>
+        </CampoSelect>
       </div>
       <div className="space-y-1.5">
         <label htmlFor="partido" className="text-sm font-medium">

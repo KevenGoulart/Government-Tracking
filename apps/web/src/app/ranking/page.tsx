@@ -2,9 +2,11 @@ import { rankingQuerySchema } from '@raio-x/shared';
 import type { Metadata } from 'next';
 import { CampoSelect } from '@/components/campo-select';
 import { Paginacao } from '@/components/paginacao';
+import { SeletorCasa } from '@/components/seletor-casa';
 import { TabelaRanking } from '@/components/ranking/tabela-ranking';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
+import { CASAS } from '@/lib/casa';
 import { caixaDeFrase } from '@/lib/format';
 import { hrefCom, lerParams, type SearchParams } from '@/lib/search-params';
 
@@ -21,12 +23,15 @@ export default async function RankingPage({
   const query = lerParams(rankingQuerySchema, await searchParams);
   const [ranking, estatisticas, categorias, filtros] = await Promise.all([
     api.ranking(query),
-    api.estatisticas(),
-    api.categorias(),
+    api.estatisticas(query.casa),
+    api.categorias(query.casa),
     api.filtros(),
   ]);
   const ano = ranking.ano;
+  const { casa } = query;
+  const info = CASAS[casa];
   const atuais = {
+    casa,
     ano: ano ?? undefined,
     categoria: query.categoria,
     partido: query.partido,
@@ -39,10 +44,15 @@ export default async function RankingPage({
       <header className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">Ranking de gastos</h1>
         <p className="text-muted-foreground max-w-3xl">
-          Total gasto com a cota parlamentar por deputado no ano, do maior para o menor. Um total
-          alto não indica irregularidade: o valor máximo da cota varia conforme o estado do
-          deputado, e partido e UF são os atuais.
+          Total gasto com a cota parlamentar no ano, do maior para o menor. Câmara e Senado têm
+          cotas diferentes e aparecem separados. Um total alto não indica irregularidade: o valor
+          máximo da cota varia conforme o estado, e partido e UF são os atuais.
         </p>
+        {/* Categorias são diferentes em cada casa: trocar de casa limpa os filtros */}
+        <SeletorCasa
+          selecionada={casa}
+          hrefCasa={(novaCasa) => hrefCom('/ranking', {}, { casa: novaCasa })}
+        />
       </header>
 
       {/* key: remonta o formulário quando a URL muda (defaultValue só vale na montagem) */}
@@ -53,6 +63,7 @@ export default async function RankingPage({
         aria-label="Filtrar ranking"
         className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[7rem_1fr_9rem_7rem_auto] lg:items-end"
       >
+        <input type="hidden" name="casa" value={casa} />
         <div className="space-y-1.5">
           <label htmlFor="ano" className="text-sm font-medium">
             Ano
@@ -109,10 +120,13 @@ export default async function RankingPage({
 
       <section aria-labelledby="titulo-ranking" className="space-y-4">
         <h2 id="titulo-ranking" className="text-muted-foreground text-sm" aria-live="polite">
-          {ranking.meta.total.toLocaleString('pt-BR')} deputados com despesas em {ano}
+          {ranking.meta.total.toLocaleString('pt-BR')} {info.plural} com despesas em {ano}
           {categoriaAtual && ` na categoria ${caixaDeFrase(categoriaAtual.nome)}`}
         </h2>
-        <TabelaRanking itens={ranking.data} legenda={`Ranking de gastos de ${ano}`} />
+        <TabelaRanking
+          itens={ranking.data}
+          legenda={`Ranking de gastos de ${ano} (${info.nome})`}
+        />
         <Paginacao
           page={ranking.meta.page}
           totalPages={ranking.meta.totalPages}

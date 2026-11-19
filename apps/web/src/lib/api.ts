@@ -2,7 +2,10 @@ import 'server-only';
 import {
   type Categoria,
   categoriaSchema,
+  type Casa,
   comparacaoSchema,
+  emendasParlamentarSchema,
+  type EmendasQuery,
   estatisticasSchema,
   fornecedorDetalheSchema,
   type RankingQuery,
@@ -89,7 +92,15 @@ export const api = {
 
   filtros: () => apiGet('/parlamentares/filtros', filtrosParlamentaresSchema, UMA_HORA),
 
-  categorias: (): Promise<Categoria[]> => apiGet('/categorias', z.array(categoriaSchema), UMA_HORA),
+  categorias: (casa?: Casa): Promise<Categoria[]> =>
+    apiGet(`/categorias${montarQuery({ casa })}`, z.array(categoriaSchema), UMA_HORA),
+
+  emendas: (id: string, query: Partial<EmendasQuery>) =>
+    apiGet(
+      `/parlamentares/${encodeURIComponent(id)}/emendas${montarQuery(query)}`,
+      emendasParlamentarSchema,
+      UMA_HORA,
+    ),
 
   parlamentar: (id: string, ano?: number) =>
     apiGet(
@@ -114,8 +125,8 @@ export const api = {
 
   syncStatus: () => apiGet('/meta/sync', syncStatusSchema, CINCO_MINUTOS),
 
-  estatisticas: (ano?: number) =>
-    apiGet(`/estatisticas${montarQuery({ ano })}`, estatisticasSchema, UMA_HORA),
+  estatisticas: (casa: Casa, ano?: number) =>
+    apiGet(`/estatisticas${montarQuery({ casa, ano })}`, estatisticasSchema, UMA_HORA),
 
   ranking: (query: Partial<RankingQuery>) =>
     apiGet(`/rankings${montarQuery(query)}`, rankingSchema, UMA_HORA),

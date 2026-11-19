@@ -30,6 +30,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { api, ApiError } from '@/lib/api';
+import { CASAS } from '@/lib/casa';
 import { formatarMoeda, nomeMes } from '@/lib/format';
 import { hrefParlamentar } from '@/lib/links';
 import { achatar, hrefCom, type SearchParams } from '@/lib/search-params';
@@ -62,19 +63,23 @@ export default async function CompararPage({
   const anoPedido = Number(params.ano) || undefined;
   const nome = params.nome?.trim();
 
-  const [comparacao, selecionadosAvulsos, busca, estatisticas] = await Promise.all([
+  const [comparacao, selecionadosAvulsos] = await Promise.all([
     ids.length >= MIN_COMPARACAO ? carregarComparacao(ids, anoPedido) : null,
     // Com menos de 2 selecionados não há comparação; busca só os dados para exibir.
     ids.length < MIN_COMPARACAO
       ? Promise.all(ids.map((id) => api.parlamentar(id).catch(() => null)))
       : [],
-    nome && nome.length >= 2 ? api.parlamentares({ nome, pageSize: 8 }) : null,
-    api.estatisticas(),
   ]);
 
   const selecionados: ParlamentarResumo[] = comparacao
     ? comparacao.parlamentares.map((p) => p.parlamentar)
     : selecionadosAvulsos.flatMap((p) => (p ? [p] : []));
+  // A comparação é sempre entre parlamentares da mesma casa (cotas diferentes)
+  const casa = selecionados[0]?.casa;
+  const [busca, estatisticas] = await Promise.all([
+    nome && nome.length >= 2 ? api.parlamentares({ nome, casa, pageSize: 8 }) : null,
+    api.estatisticas(casa ?? 'CAMARA'),
+  ]);
   const series: Serie[] = selecionados.map((p, i) => ({
     id: p.id,
     nome: p.nome,
@@ -88,8 +93,8 @@ export default async function CompararPage({
       <header className="space-y-2">
         <h1 className="text-3xl font-bold tracking-tight">Comparar parlamentares</h1>
         <p className="text-muted-foreground">
-          Escolha de {MIN_COMPARACAO} a {MAX_COMPARACAO} deputados para comparar os gastos da cota
-          no mesmo ano.
+          Escolha de {MIN_COMPARACAO} a {MAX_COMPARACAO} parlamentares da mesma casa (Câmara ou
+          Senado) para comparar os gastos da cota no mesmo ano.
         </p>
       </header>
 
@@ -131,7 +136,7 @@ export default async function CompararPage({
       {!cheio && (
         <section aria-labelledby="titulo-adicionar" className="space-y-3">
           <h2 id="titulo-adicionar" className="text-sm font-medium">
-            Adicionar parlamentar
+            Adicionar parlamentar{casa && ` (${CASAS[casa].plural})`}
           </h2>
           <form
             action="/comparar"
