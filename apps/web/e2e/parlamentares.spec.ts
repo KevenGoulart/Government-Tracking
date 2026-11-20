@@ -295,6 +295,35 @@ test.describe('estatísticas, ranking, fornecedor e comparação', () => {
     await expect(secao.getByText(/maior que 99% das despesas/)).toBeVisible();
   });
 
+  test('pontos de atenção ficam logo abaixo dos totais do parlamentar', async ({ page }) => {
+    await page.goto(ANA);
+    const titulos = await page.getByRole('heading', { level: 3 }).allTextContents();
+    expect(titulos.indexOf('Pontos de atenção')).toBe(0);
+    expect(titulos.indexOf('Evolução mensal')).toBe(1);
+  });
+
+  test('home destaca os principais pontos de atenção acima dos gráficos', async ({ page }) => {
+    await page.goto('/');
+    const secao = page.getByRole('region', { name: 'Principais pontos de atenção' });
+    await expect(secao.getByText('Não indicam irregularidade')).toBeVisible();
+    await expect(secao.getByText('3 despesas atípicas', { exact: false })).toBeVisible();
+    await expect(secao.getByText(/4× a mediana/)).toBeVisible();
+    await expect(secao.getByText('100%')).toBeVisible();
+
+    const titulos = await page.getByRole('heading', { level: 3 }).allTextContents();
+    expect(titulos.indexOf('Principais pontos de atenção')).toBeLessThan(
+      titulos.indexOf('Gastos por categoria'),
+    );
+
+    await secao.getByRole('link', { name: 'Ana Lúcia Souza' }).first().click();
+    await expect(page).toHaveURL(
+      /\/parlamentares\/cmana0000000000000000000a1\?ano=2025#pontos-de-atencao/,
+    );
+
+    await page.goto('/?casa=SENADO');
+    await expect(page.getByText('Nenhum valor fora do padrão neste ano.')).toBeVisible();
+  });
+
   test('emendas: estado vazio para quem não tem emendas vinculadas', async ({ page }) => {
     await page.goto('/parlamentares/cmdavi000000000000000000d4');
     await expect(page.getByText(/Nenhuma emenda individual vinculada/)).toBeVisible();

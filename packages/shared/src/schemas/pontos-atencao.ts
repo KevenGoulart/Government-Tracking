@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { anoQuerySchema, decimalSchema, opcionalDaQuery } from './common';
+import { anoQuerySchema, casaSchema, decimalSchema, opcionalDaQuery } from './common';
 import { despesaSchema } from './despesa';
+import { parlamentarResumoSchema } from './parlamentar';
 
 /**
  * Critérios dos "pontos de atenção": regras estatísticas simples e públicas, que destacam
@@ -16,6 +17,8 @@ export const CRITERIOS_PONTOS_ATENCAO = {
   minimoDespesasCategoria: 50,
   /** Quantas despesas atípicas a resposta lista (as mais distantes da mediana). */
   maximoListadas: 10,
+  /** Quantos destaques de cada tipo a home mostra (os mais evidentes da casa). */
+  maximoDestaques: 5,
   /** Participação de um único fornecedor no total do ano (fora passagens). */
   participacaoFornecedor: 0.5,
   /** Abaixo deste total (fora passagens), a concentração não é avaliada. */
@@ -97,3 +100,31 @@ export const pontosAtencaoSchema = z.object({
   concentracao: concentracaoFornecedorSchema.nullable(),
 });
 export type PontosAtencao = z.infer<typeof pontosAtencaoSchema>;
+
+// ---------- Destaques da casa (home) ----------
+
+export const destaquesPontosAtencaoQuerySchema = z.object({
+  casa: opcionalDaQuery(casaSchema).transform((casa) => casa ?? 'CAMARA'),
+  /** Quando omitido, usa o ano mais recente com despesas da casa. */
+  ano: opcionalDaQuery(anoQuerySchema),
+});
+export type DestaquesPontosAtencaoQuery = z.infer<typeof destaquesPontosAtencaoQuerySchema>;
+
+export const destaquesPontosAtencaoSchema = z.object({
+  casa: casaSchema,
+  ano: z.number().int().nullable(),
+  valoresAtipicos: z.object({
+    /** Despesas atípicas de toda a casa no ano. */
+    quantidade: z.number().int(),
+    total: decimalSchema,
+    /** A maior de cada parlamentar, pelo valor acima do limite em reais (no máximo `maximoDestaques`). */
+    data: z.array(despesaAtipicaSchema.extend({ parlamentar: parlamentarResumoSchema })),
+  }),
+  concentracoes: z.object({
+    /** Parlamentares com concentração em um fornecedor no ano. */
+    quantidade: z.number().int(),
+    /** As maiores participações (no máximo `maximoDestaques`). */
+    data: z.array(concentracaoFornecedorSchema.extend({ parlamentar: parlamentarResumoSchema })),
+  }),
+});
+export type DestaquesPontosAtencao = z.infer<typeof destaquesPontosAtencaoSchema>;

@@ -1,9 +1,10 @@
 import { CRITERIOS_PONTOS_ATENCAO, type PontosAtencao } from '@raio-x/shared';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, TriangleExclamationPoint } from 'lucide-react';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { caixaDeFrase, formatarData, formatarMoeda } from '@/lib/format';
 import { hrefFornecedor } from '@/lib/links';
+import { cn } from '@/lib/utils';
 
 const percentual = new Intl.NumberFormat('pt-BR', { style: 'percent', maximumFractionDigits: 0 });
 const vezes = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
@@ -21,10 +22,16 @@ export function SecaoPontosAtencao({ pontos }: { pontos: PontosAtencao }) {
     <section
       id="pontos-de-atencao"
       aria-labelledby="titulo-pontos-atencao"
-      className="scroll-mt-4 space-y-4"
+      className={cn(
+        'scroll-mt-4 space-y-4 rounded-xl border-2 p-4 sm:p-6',
+        vazio ? 'border-dashed' : 'border-destructive',
+      )}
     >
       <div className="space-y-1">
-        <h3 id="titulo-pontos-atencao" className="text-lg font-semibold">
+        <h3 id="titulo-pontos-atencao" className="flex items-center gap-2 text-lg font-semibold">
+          {!vazio && (
+            <TriangleExclamationPoint className="text-destructive size-5 shrink-0" aria-hidden />
+          )}
           Pontos de atenção
         </h3>
         <p className="text-muted-foreground max-w-3xl text-sm">

@@ -176,6 +176,8 @@ export default async function ParlamentarPage({ params, searchParams }: Props) {
             />
           </div>
 
+          {pontos && <SecaoPontosAtencao pontos={pontos} />}
+
           <Card>
             <CardHeader>
               <CardTitle>
@@ -214,8 +216,6 @@ export default async function ParlamentarPage({ params, searchParams }: Props) {
               </CardContent>
             </Card>
           </div>
-
-          {pontos && <SecaoPontosAtencao pontos={pontos} />}
 
           <section
             id="despesas"

@@ -204,6 +204,28 @@ const semPontos = {
   concentracao: null,
 };
 
+// Destaques da home: na Câmara, os pontos da Ana; no Senado, nada fora do padrão
+const destaquesCamara = {
+  casa: 'CAMARA',
+  ano: 2025,
+  valoresAtipicos: {
+    quantidade: 3,
+    total: '350.00',
+    data: pontosAna.valoresAtipicos.data.map((d) => ({ ...d, parlamentar: parlamentares[0] })),
+  },
+  concentracoes: {
+    quantidade: 1,
+    data: [{ ...pontosAna.concentracao, parlamentar: parlamentares[0] }],
+  },
+};
+
+const destaquesSenado = {
+  casa: 'SENADO',
+  ano: 2025,
+  valoresAtipicos: { quantidade: 0, total: '0.00', data: [] },
+  concentracoes: { quantidade: 0, data: [] },
+};
+
 const ranking = [
   { posicao: 1, parlamentar: parlamentares[0], total: '7000.00', quantidade: 25 },
   { posicao: 2, parlamentar: parlamentares[1], total: '250.00', quantidade: 2 },
@@ -359,6 +381,10 @@ createServer((req, res) => {
   const rotaEmendas = /^\/parlamentares\/([^/]+)\/emendas$/.exec(caminho);
   if (rotaEmendas) {
     return json(res, 200, rotaEmendas[1] === detalheAna.id ? emendasAna : semEmendas);
+  }
+
+  if (caminho === '/pontos-de-atencao') {
+    return json(res, 200, p.get('casa') === 'SENADO' ? destaquesSenado : destaquesCamara);
   }
 
   const rotaPontos = /^\/parlamentares\/([^/]+)\/pontos-de-atencao$/.exec(caminho);

@@ -5,6 +5,8 @@ import {
   type ConcentracaoFornecedor,
   CRITERIOS_PONTOS_ATENCAO,
   type DespesaAtipica,
+  type DestaquesPontosAtencao,
+  type DestaquesPontosAtencaoQuery,
   haConcentracao,
   limiteAtipico,
   type PontosAtencao,
@@ -13,6 +15,7 @@ import {
 import { CacheService } from '../cache/cache.service';
 import { decimal } from '../common/decimal';
 import { INCLUDE_DESPESA, mapearDespesa } from '../common/despesa';
+import { COLUNAS_PARLAMENTAR, type LinhaParlamentar, resumoParlamentar } from '../common/sql';
 import { PrismaService } from '../prisma/prisma.service';
 
 const UMA_HORA = 3_600;
@@ -33,6 +36,25 @@ interface LinhaFornecedorCategoria {
   total: Prisma.Decimal;
   quantidade: bigint;
 }
+
+const SELECT_RESUMO_PARLAMENTAR = {
+  id: true,
+  casa: true,
+  nome: true,
+  partido: true,
+  uf: true,
+  fotoUrl: true,
+  emExercicio: true,
+} satisfies Prisma.ParlamentarSelect;
+
+type LinhaConcentracao = LinhaParlamentar & {
+  fornecedorId: string;
+  fornecedorNome: string;
+  documento: string;
+  total: Prisma.Decimal;
+  totalBase: Prisma.Decimal;
+  quantidade: bigint;
+};
 
 /**
  * "Pontos de atenção": regras estatísticas simples sobre a cota parlamentar.
@@ -87,6 +109,180 @@ export class PontosAtencaoService {
         concentracao,
       };
     });
+  }
+
+  /**
+   * Os pontos de atenção mais evidentes de toda a casa no ano, para a home: as despesas
+   * mais distantes da mediana da categoria e as maiores concentrações em um fornecedor.
+   * Usa as mesmas regras da página do parlamentar.
+   */
+  async destaques(query: DestaquesPontosAtencaoQuery): Promise<DestaquesPontosAtencao> {
+    const { casa } = query;
+    const ano =
+      query.ano ??
+      (
+        await this.prisma.despesa.aggregate({
+          where: { parlamentar: { casa } },
+          _max: { ano: true },
+        })
+      )._max.ano;
+
+    if (ano === null) {
+      return {
+        casa,
+        ano,
+        valoresAtipicos: { quantidade: 0, total: '0.00', data: [] },
+        concentracoes: { quantidade: 0, data: [] },
+      };
+    }
+
+    return this.cache.obterOuCalcular(
+      `pontos-atencao-destaques:${casa}:${ano}`,
+      UMA_HORA,
+      async () => {
+        const [valoresAtipicos, concentracoes] = await Promise.all([
+          this.padroesCategorias(casa, ano).then((padroes) =>
+            this.atipicosDaCasa(casa, ano, padroes),
+          ),
+          this.concentracoesDaCasa(casa, ano),
+        ]);
+        return { casa, ano, valoresAtipicos, concentracoes };
+      },
+    );
+  }
+
+  private async atipicosDaCasa(
+    casa: Casa,
+    ano: number,
+    padroes: PadraoCategoria[],
+  ): Promise<DestaquesPontosAtencao['valoresAtipicos']> {
+    if (padroes.length === 0) return { quantidade: 0, total: '0.00', data: [] };
+
+    const limites = Prisma.join(
+      padroes.map((p) => Prisma.sql`(${p.categoriaId}, ${p.limite}::numeric)`),
+    );
+    // Uma linha por destaque, todas com a contagem e a soma de todas as atípicas da casa.
+    // Destaques: a maior de cada parlamentar, ordenadas pelo valor acima do limite em reais.
+    // Ordenar pela razão sobre a mediana deixaria a home só com táxis de R$ 2.700 (categorias
+    // de mediana baixíssima) e repetiria o mesmo parlamentar.
+    const linhas = await this.prisma.$queryRaw<
+      { id: string | null; quantidade: bigint; total: Prisma.Decimal | null }[]
+    >`
+      WITH acima AS (
+        SELECT d.id, d."parlamentarId", d."valorLiquido" AS valor,
+               d."valorLiquido" - l.limite AS excesso
+        FROM "Despesa" d
+        JOIN "Parlamentar" p ON p.id = d."parlamentarId"
+        JOIN (VALUES ${limites}) AS l("categoriaId", limite)
+          ON l."categoriaId" = d."categoriaId"
+        WHERE p.casa = ${casa}::"Casa" AND d.ano = ${ano} AND d."valorLiquido" > l.limite
+      ),
+      maior_por_parlamentar AS (
+        SELECT DISTINCT ON ("parlamentarId") id, excesso
+        FROM acima
+        ORDER BY "parlamentarId", excesso DESC, id ASC
+      )
+      SELECT t.id, s.quantidade, s.total
+      FROM (SELECT COUNT(*) AS quantidade, SUM(valor) AS total FROM acima) s
+      LEFT JOIN LATERAL (
+        SELECT id FROM maior_por_parlamentar ORDER BY excesso DESC, id ASC
+        LIMIT ${CRITERIOS_PONTOS_ATENCAO.maximoDestaques}
+      ) t ON true`;
+
+    const [primeira] = linhas;
+    const quantidade = Number(primeira?.quantidade ?? 0);
+    if (!primeira || quantidade === 0) return { quantidade: 0, total: '0.00', data: [] };
+
+    const ids = linhas.flatMap((l) => (l.id ? [l.id] : []));
+    const registros = await this.prisma.despesa.findMany({
+      where: { id: { in: ids } },
+      include: { ...INCLUDE_DESPESA, parlamentar: { select: SELECT_RESUMO_PARLAMENTAR } },
+    });
+    const porId = new Map(registros.map((r) => [r.id, r]));
+    const padraoPorCategoria = new Map(padroes.map((p) => [p.categoriaId, p]));
+
+    const data = ids.flatMap((id) => {
+      const registro = porId.get(id);
+      const padrao = registro && padraoPorCategoria.get(registro.categoriaId);
+      if (!registro || !padrao) return [];
+      const vezesMediana =
+        padrao.mediana > 0 ? registro.valorLiquido.toNumber() / padrao.mediana : 0;
+      return [
+        {
+          ...mapearDespesa(registro),
+          parlamentar: resumoParlamentar(registro.parlamentar),
+          referencia: {
+            mediana: padrao.mediana.toFixed(2),
+            limite: padrao.limite.toFixed(2),
+            quantidadeCategoria: padrao.quantidade,
+          },
+          vezesMediana: Math.round(vezesMediana * 10) / 10,
+        },
+      ];
+    });
+
+    return { quantidade, total: decimal(primeira.total ?? new Prisma.Decimal(0)), data };
+  }
+
+  /**
+   * Concentração em um fornecedor para todos os parlamentares da casa de uma vez, com as
+   * mesmas regras de `concentracao` (sem passagens, só fornecedores com CNPJ/CPF).
+   */
+  private async concentracoesDaCasa(
+    casa: Casa,
+    ano: number,
+  ): Promise<DestaquesPontosAtencao['concentracoes']> {
+    const { participacaoFornecedor, totalMinimoConcentracao, maximoDestaques } =
+      CRITERIOS_PONTOS_ATENCAO;
+    const categorias = await this.prisma.categoria.findMany({
+      where: { casa },
+      select: { id: true, slug: true },
+    });
+    const foraDaBase = categorias.filter((c) => categoriaForaDaConcentracao(c.slug));
+    const semPassagens = foraDaBase.length
+      ? Prisma.sql`AND d."categoriaId" NOT IN (${Prisma.join(foraDaBase.map((c) => c.id))})`
+      : Prisma.empty;
+
+    const linhas = await this.prisma.$queryRaw<LinhaConcentracao[]>`
+      WITH base AS (
+        SELECT d."parlamentarId", d."fornecedorId",
+               SUM(d."valorLiquido") AS total, COUNT(*) AS quantidade
+        FROM "Despesa" d JOIN "Parlamentar" p ON p.id = d."parlamentarId"
+        WHERE p.casa = ${casa}::"Casa" AND d.ano = ${ano} ${semPassagens}
+        GROUP BY d."parlamentarId", d."fornecedorId"
+      ),
+      totais AS (
+        SELECT "parlamentarId", SUM(total) AS "totalBase" FROM base GROUP BY "parlamentarId"
+      ),
+      maiores AS (
+        SELECT DISTINCT ON (b."parlamentarId")
+               b."parlamentarId", b."fornecedorId", b.total, b.quantidade, t."totalBase"
+        FROM base b
+        JOIN totais t ON t."parlamentarId" = b."parlamentarId"
+        JOIN "Fornecedor" f ON f.id = b."fornecedorId"
+        WHERE f.documento IS NOT NULL
+        ORDER BY b."parlamentarId", b.total DESC
+      )
+      SELECT ${COLUNAS_PARLAMENTAR}, f.id AS "fornecedorId", f.nome AS "fornecedorNome",
+             f.documento, m.total, m."totalBase", m.quantidade
+      FROM maiores m
+      JOIN "Parlamentar" p ON p.id = m."parlamentarId"
+      JOIN "Fornecedor" f ON f.id = m."fornecedorId"
+      WHERE m."totalBase" >= ${totalMinimoConcentracao}
+        AND m.total / m."totalBase" >= ${participacaoFornecedor}
+      ORDER BY m.total / m."totalBase" DESC, m.total DESC, p.nome ASC`;
+
+    return {
+      quantidade: linhas.length,
+      data: linhas.slice(0, maximoDestaques).map((l) => ({
+        parlamentar: resumoParlamentar(l),
+        fornecedor: { id: l.fornecedorId, nome: l.fornecedorNome, documento: l.documento },
+        total: decimal(l.total),
+        totalBase: decimal(l.totalBase),
+        participacao: Math.round(l.total.div(l.totalBase).toNumber() * 1000) / 1000,
+        quantidade: Number(l.quantidade),
+      })),
+    };
   }
 
   /** Mediana e limite de cada categoria da casa no ano (compartilhado entre parlamentares). */

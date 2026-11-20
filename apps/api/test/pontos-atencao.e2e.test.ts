@@ -2,7 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { PrismaClient } from '@raio-x/db';
 import { truncateAll } from '@raio-x/db/testing';
-import { pontosAtencaoSchema } from '@raio-x/shared';
+import { destaquesPontosAtencaoSchema, pontosAtencaoSchema } from '@raio-x/shared';
 import type { Redis } from 'ioredis';
 import request from 'supertest';
 import type { App } from 'supertest/types';
@@ -138,6 +138,44 @@ describe('Pontos de atenção (e2e)', () => {
       .get(`/parlamentares/${ids.ana.id}/pontos-de-atencao?ano=2024`)
       .expect(200);
     expect(outroAno.body).toMatchObject({ ano: 2024, valoresAtipicos: { quantidade: 0 } });
+  });
+
+  it('destaques da casa: atípicas e concentrações de todos os parlamentares', async () => {
+    const res = await http().get('/pontos-de-atencao?casa=CAMARA').expect(200);
+    const body = destaquesPontosAtencaoSchema.parse(res.body);
+
+    expect(body).toMatchObject({
+      casa: 'CAMARA',
+      ano: 2025,
+      valoresAtipicos: { quantidade: 1, total: '5000.00' },
+      concentracoes: { quantidade: 1 },
+    });
+    const [atipica] = body.valoresAtipicos.data;
+    expect(atipica).toMatchObject({
+      valorLiquido: '5000.00',
+      vezesMediana: 38.6,
+      parlamentar: { id: ids.ana.id, nome: 'Ana' },
+    });
+    expect(body.concentracoes.data).toHaveLength(1);
+    expect(body.concentracoes.data[0]).toMatchObject({
+      parlamentar: { id: ids.ana.id },
+      fornecedor: { id: ids.grafica.id, nome: 'Gráfica', documento: '04971874000147' },
+      total: '60000.00',
+      totalBase: '95070.00',
+      participacao: 0.631,
+      quantidade: 1,
+    });
+  });
+
+  it('destaques: vazio para casa sem despesas e 400 para casa inválida', async () => {
+    const senado = await http().get('/pontos-de-atencao?casa=SENADO').expect(200);
+    expect(senado.body).toEqual({
+      casa: 'SENADO',
+      ano: null,
+      valoresAtipicos: { quantidade: 0, total: '0.00', data: [] },
+      concentracoes: { quantidade: 0, data: [] },
+    });
+    await http().get('/pontos-de-atencao?casa=XYZ').expect(400);
   });
 
   it('responde 404 para parlamentar inexistente e 400 para ano inválido', async () => {

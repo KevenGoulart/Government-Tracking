@@ -1,5 +1,6 @@
 import { estatisticasQuerySchema } from '@raio-x/shared';
 import Link from 'next/link';
+import { DestaquesPontosAtencao } from '@/components/destaques-pontos-atencao';
 import { BarrasHorizontais } from '@/components/graficos/barras-horizontais';
 import { Indicador } from '@/components/indicador';
 import { GastosPorCategoria } from '@/components/parlamentar/gastos-por-categoria';
@@ -15,7 +16,11 @@ import { hrefCom, lerParams, type SearchParams } from '@/lib/search-params';
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const { casa, ano: anoPedido } = lerParams(estatisticasQuerySchema, await searchParams);
-  const est = await api.estatisticas(casa, anoPedido);
+  // Sem ano pedido, as duas rotas usam o ano mais recente da casa: podem rodar em paralelo.
+  const [est, destaques] = await Promise.all([
+    api.estatisticas(casa, anoPedido),
+    api.destaquesPontosAtencao(casa, anoPedido),
+  ]);
   const { ano } = est;
   const info = CASAS[casa];
   const doRanking = (extra: Record<string, string | number | undefined>) =>
@@ -72,6 +77,8 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               valor={est.quantidadeFornecedores.toLocaleString('pt-BR')}
             />
           </div>
+
+          <DestaquesPontosAtencao destaques={destaques} />
 
           <div className="grid gap-6 lg:grid-cols-2">
             <Card>

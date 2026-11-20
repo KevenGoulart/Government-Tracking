@@ -4,6 +4,7 @@ import {
   categoriaSchema,
   type Casa,
   comparacaoSchema,
+  destaquesPontosAtencaoSchema,
   emendasParlamentarSchema,
   type EmendasQuery,
   estatisticasSchema,
@@ -128,6 +129,13 @@ export const api = {
     apiGet(
       `/parlamentares/${encodeURIComponent(id)}/pontos-de-atencao${montarQuery({ ano })}`,
       pontosAtencaoSchema,
+      UMA_HORA,
+    ),
+
+  destaquesPontosAtencao: (casa: Casa, ano?: number) =>
+    apiGet(
+      `/pontos-de-atencao${montarQuery({ casa, ano })}`,
+      destaquesPontosAtencaoSchema,
       UMA_HORA,
     ),
 

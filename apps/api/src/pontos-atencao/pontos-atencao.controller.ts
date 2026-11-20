@@ -1,6 +1,10 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiNotFoundResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
+  type DestaquesPontosAtencao,
+  type DestaquesPontosAtencaoQuery,
+  destaquesPontosAtencaoQuerySchema,
+  destaquesPontosAtencaoSchema,
   type PontosAtencao,
   type PontosAtencaoQuery,
   pontosAtencaoQuerySchema,
@@ -12,11 +16,28 @@ import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { PontosAtencaoService } from './pontos-atencao.service';
 
 @ApiTags('pontos-de-atencao')
-@Controller('parlamentares/:id/pontos-de-atencao')
+@Controller()
 export class PontosAtencaoController {
   constructor(private readonly service: PontosAtencaoService) {}
 
-  @Get()
+  @Get('pontos-de-atencao')
+  @ApiOperation({
+    summary: 'Pontos de atenção mais evidentes da casa no ano',
+    description:
+      'As despesas mais distantes da mediana da categoria e as maiores concentrações em um ' +
+      'fornecedor, com as mesmas regras da rota do parlamentar. ' +
+      'São indicadores estatísticos, não indícios de irregularidade.',
+  })
+  @ApiZodQuery(destaquesPontosAtencaoQuerySchema)
+  @ApiZodOk(destaquesPontosAtencaoSchema)
+  destaques(
+    @Query(new ZodValidationPipe(destaquesPontosAtencaoQuerySchema))
+    query: DestaquesPontosAtencaoQuery,
+  ): Promise<DestaquesPontosAtencao> {
+    return this.service.destaques(query);
+  }
+
+  @Get('parlamentares/:id/pontos-de-atencao')
   @ApiOperation({
     summary: 'Valores fora do padrão na cota do parlamentar',
     description:
