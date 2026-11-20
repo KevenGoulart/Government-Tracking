@@ -192,15 +192,3 @@ As decisões não óbvias estão registradas, com o motivo de cada uma, em [docs
 | [Dados Abertos do Senado](https://legis.senado.leg.br/dadosabertos) e CSV anual da CEAPS                                                                   | Senadores e despesas      | 3    |
 | [Portal da Transparência (CGU)](https://api.portaldatransparencia.gov.br) (chave gratuita)                                                                 | Emendas parlamentares     | 3    |
 | Dados Abertos do TSE                                                                                                                                       | Bens e contas de campanha | —    |
-
-## Roadmap
-
-- [x] **Fase 0**: monorepo, Docker Compose, Prisma, lint/format, CI
-- [x] **Fase 1**: ingestão da Câmara, API de parlamentares/despesas, busca e página do parlamentar
-- [x] **Fase 2**: rankings, fornecedores, comparação, estatísticas, cache
-- [x] **Fase 3**: Senado e emendas parlamentares
-- [x] **Fase 4**: pontos de atenção (detecção simples de valores fora do padrão)
-- [x] **Fase 5**: deploy (Dockerfiles, Blueprint do Render, Vercel), worker em 512 MB e README final
-
-Próximos passos possíveis: bens declarados e contas de campanha (TSE), que ficaram fora do
-escopo das fases.
